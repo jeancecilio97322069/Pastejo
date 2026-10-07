@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Pastejo">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231E3B2F'/%3E%3Cg fill='%237DB35A'%3E%3Cpath d='M14 52c2-12 0-20-4-27 8 6 11 16 11 27z'/%3E%3Cpath d='M21 52c2-16 4-28 10-38-1 14-2 26-2 38z'/%3E%3Cpath d='M29 52c2-13 7-23 15-31-4 12-6 21-7 31z'/%3E%3Cpath d='M37 52c3-10 8-16 17-19-6 5-9 11-10 19z'/%3E%3C/g%3E%3C/svg%3E">
 <title>Pastejo rotacionado</title>
 <style>/* required styles */
@@ -863,6 +865,31 @@ td.gado{white-space:nowrap}
 .cl-rod{font-size:11px;color:var(--mut);padding:4px 10px 6px;display:flex;align-items:center;justify-content:space-between}
 .clima-faixa{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .clima-item{background:var(--papel);border:1px solid var(--linha);border-radius:10px;padding:6px 12px}
+/* nuvem / login */
+.nvst{font-size:12px;color:#9FE0AE}
+.nvst.pend{color:#F2C230}
+.nvst.off{color:#F2A28E}
+.nvov{position:fixed;inset:0;z-index:5000;background:var(--mata);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+.nvov[hidden]{display:none!important}
+.nvcard{background:var(--papel);border-radius:14px;padding:22px;width:100%;max-width:380px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+.nvtop{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.nvtop img{width:40px;height:40px;border-radius:10px}
+.nvtop h2{margin:0;font-size:19px}
+.nvcard h3{font-size:14px;margin:14px 0 4px}
+.nvcard label.f{margin-top:8px}
+.nvcard input[type=email],.nvcard input[type=password],.nvcard input[type=text]{width:100%;font-size:16px}
+.nvw{width:100%;margin-top:8px;padding:11px}
+.lnk{border:none;background:none;color:var(--mata);text-decoration:underline;padding:8px 0 0;font-size:13px;display:block;margin:4px auto 0}
+.nvou{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:12px;margin:14px 0 4px}
+.nvou:before,.nvou:after{content:"";flex:1;height:1px;background:var(--linha)}
+.nvmsg{color:var(--terra);font-size:13px;margin-top:8px;min-height:0}
+.nvmsg:empty{display:none}
+.nvchk{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin-top:10px;color:var(--txt)}
+.nvchk input{margin-top:3px;width:17px;height:17px;accent-color:var(--mata)}
+body.campo .so-admin{display:none!important}
+body:not(.campo) .so-campo{display:none!important}
+body.nuvem .so-local{display:none!important}
+body.nuvem .nvsemweb{display:none}
 td.gado .gin{display:flex;align-items:center;gap:4px}
 .xg{padding:0 8px!important;height:28px;font-size:16px;line-height:1;border-color:#C9A79A;color:var(--terra)}
 /* rótulo compacto no mapa */
@@ -896,6 +923,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 <header>
   <div class="top">
     <h1>Pastejo rotacionado</h1><span class="faz" id="hFaz"></span>
+    <span class="nvst" id="nvSt" hidden></span>
     <span class="relogio" id="relogio"></span>
     <label id="fRegBox" class="freg" hidden>Região <select id="fReg"></select></label>
   </div>
@@ -926,12 +954,12 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
   <!-- MAPA -->
   <section class="tab" id="t-mapa">
     <div class="row" style="margin:0 0 10px;align-items:center">
-      <button id="bNum">Numerar clicando</button>
+      <button id="bNum" class="so-admin">Numerar clicando</button>
       <span id="numBox" hidden style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label class="f" style="flex-direction:row;align-items:center">Prefixo <input type="text" id="numPref" value="P" style="width:56px"></label>
         <label class="f" style="flex-direction:row;align-items:center">Começar em <input type="number" id="numIni" value="1" min="1" style="width:64px"></label>
         <span class="hint" id="numInfo" style="margin:0"></span></span>
-      <span class="hint" style="margin:0">Fora desse modo, clique num pasto para editar nome, região, posição e dias.</span>
+      <span class="hint so-admin" style="margin:0">Fora desse modo, clique num pasto para editar nome, região, posição e dias.</span>
     </div>
     <div id="mapBox"><div id="map"></div></div>
     <div class="leg"><span><i style="background:var(--terra)"></i>ocupado (cor do lote)</span><span><i class="grad"></i>em recuperação (fica mais verde conforme recupera)</span><span><i style="background:var(--ok)"></i>pronto</span>
@@ -952,6 +980,25 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 
   <!-- CONFIG -->
   <section class="tab" id="t-config">
+    <h2>Conta e sincronização</h2>
+    <div class="card">
+      <div id="nvConta" hidden><div class="row" style="margin-top:0;align-items:center;justify-content:space-between"><span id="nvContaTxt"></span><button class="peq" id="nvSair">Sair</button></div>
+        <div class="hint">Tudo que é feito aqui aparece nos outros aparelhos da equipe. Sem sinal, o app continua funcionando e envia quando a internet voltar.</div></div>
+      <div id="nvEntrarBox" hidden><div class="hint" style="margin-top:0">Você está usando só neste aparelho.</div><div class="row"><button class="pri" id="nvEntrarBtn">Entrar para sincronizar</button></div></div>
+      <div class="hint nvsemweb">Para entrar com login e sincronizar, abra o app pelo endereço publicado (GitHub Pages). Aberto como arquivo, ele funciona só neste aparelho.</div>
+    </div>
+    <div class="card" id="eqCard" hidden>
+      <b>Equipe</b>
+      <div class="tw"><table><thead><tr><th>Pessoa</th><th>Acesso</th><th></th></tr></thead><tbody id="eqBox"></tbody></table></div>
+      <div class="row">
+        <label class="f">Convidar como <select id="eqPapel"><option value="campo">Campo</option><option value="admin">Administrador</option></select></label>
+        <button class="pri" id="eqGerar">Gerar convite</button>
+      </div>
+      <div id="eqLink" hidden class="row"><input type="text" id="eqLinkTxt" readonly style="flex:1;min-width:220px"><button id="eqCopiar">Copiar</button><a class="btn" id="eqWa" target="_blank" rel="noopener">Enviar no WhatsApp</a></div>
+      <div class="hint"><b>Administrador</b>: cadastra e edita pastos, regiões, lotes e parâmetros. <b>Campo</b>: vê tudo, confirma mudanças e lança manejos. O convite vale 7 dias: a pessoa abre o link, cria a conta e já entra na fazenda.</div>
+    </div>
+
+    <div class="so-admin">
     <h2>Parâmetros gerais</h2>
     <div class="card">
       <div class="row" style="margin-top:0">
@@ -999,14 +1046,17 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
       </div>
     </div>
 
+    </div>
+    <div class="hint so-campo" style="margin-top:14px">O cadastro de pastos, regiões e lotes é feito pelo administrador.</div>
+
     <h2>Agenda, backup e dados</h2>
     <div class="card">
       <div class="acoes" style="margin-top:0">
         <button id="bIcsAll">Próximos avisos na agenda (.ics)</button>
         <button id="bExp">Exportar backup</button>
-        <label class="btn">Importar backup<input type="file" id="fImp" accept=".json" hidden></label>
-        <button class="pri" id="bPub">Gerar index.html com os dados (para publicar)</button>
-        <button class="del" id="bZerar">Apagar tudo</button>
+        <label class="btn so-admin so-local">Importar backup<input type="file" id="fImp" accept=".json" hidden></label>
+        <button class="pri so-local" id="bPub">Gerar index.html com os dados (para publicar)</button>
+        <button class="del so-local" id="bZerar">Apagar tudo</button>
       </div>
       <div class="hint">O arquivo .ics abre direto na agenda do iPhone e na agenda da Samsung, com alarme. No Google Agenda use os botões “Google Agenda” de cada aviso (ou importe o .ics pelo site calendar.google.com). Inclui as mudanças previstas dos próximos 30 dias e o fim da recuperação dos pastos.</div>
     </div>
@@ -1036,6 +1086,36 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
   </section>
 </main>
 <div class="toast" id="toast"></div>
+<div id="nvOv" class="nvov" hidden>
+  <div class="nvcard">
+    <div class="nvtop"><img src="icon-192.png" alt="" onerror="this.remove()"><h2>Pastejo rotacionado</h2></div>
+    <div id="nvCarr" hidden class="hint" style="text-align:center;padding:20px 0">Carregando…</div>
+    <div id="nvLogin" hidden>
+      <label class="f">E-mail<input type="email" id="nvEmail" autocomplete="username" inputmode="email"></label>
+      <label class="f">Senha<input type="password" id="nvSenha" autocomplete="current-password"></label>
+      <div class="nvmsg" id="nvMsg"></div>
+      <button class="pri nvw" id="nvEntrar">Entrar</button>
+      <button class="nvw" id="nvCriarConta">Criar conta nova</button>
+      <button class="lnk" id="nvEsqueci">Esqueci a senha</button>
+      <div class="nvou"><span>ou</span></div>
+      <button class="nvw" id="nvGoogle">Entrar com Google</button>
+      <button class="lnk" id="nvLocal">Usar sem login (dados só neste aparelho)</button>
+    </div>
+    <div id="nvFaz" hidden>
+      <div class="hint" style="margin:0 0 6px">Conectado como <b id="nvQuem"></b></div>
+      <div class="nvmsg" id="nvMsg2"></div>
+      <h3>Entrar com convite</h3>
+      <label class="f">Código do convite<input type="text" id="nvCod" autocapitalize="off"></label>
+      <button class="pri nvw" id="nvUsarCod">Entrar na fazenda</button>
+      <div class="nvou"><span>ou</span></div>
+      <h3>Criar uma fazenda nova</h3>
+      <label class="f">Nome da fazenda<input type="text" id="nvNomeFaz" placeholder="Ex.: Fazenda Olavo"></label>
+      <label class="nvchk" id="nvLevarBox"><input type="checkbox" id="nvLevar" checked> <span id="nvLevarTxt"></span></label>
+      <button class="nvw" id="nvCriar">Criar fazenda (você será o administrador)</button>
+      <button class="lnk" id="nvSair2">Sair desta conta</button>
+    </div>
+  </div>
+</div>
 <datalist id="dlReg"></datalist>
 
 <script>/* @preserve
@@ -1622,6 +1702,16 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 })();
 if (typeof module !== 'undefined') module.exports = Core;
 </script>
+<script type="module">
+if (!window.FBX) {
+  const B = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  try {
+    const [a, au, fs] = await Promise.all([import(B + 'firebase-app.js'), import(B + 'firebase-auth.js'), import(B + 'firebase-firestore.js')]);
+    window.FBX = { a, au, fs };
+  } catch (e) { window.FBX = { erro: e }; }
+}
+window.dispatchEvent(new Event('fb-pronto'));
+</script>
 <script id="dadosIniciais" type="application/json">{}</script>
 <script>(() => {
 const HTML_ORIGINAL = '<!doctype html>\n' + document.documentElement.outerHTML;
@@ -1662,10 +1752,10 @@ const DB = {
 };
 let podeSalvar = false;
 async function salvar() {
-  if (!podeSalvar) return;
+  if (!podeSalvar || NV.on) return;
   try { await DB.set('estado', JSON.stringify(ST)); } catch (e) { podeSalvar = false; $('semArmaz').hidden = false; }
 }
-function mudou() { salvar(); render(); }
+function mudou() { if (NV.on) sincronizar(); else salvar(); render(); }
 
 // ---------- formatação ----------
 const z2 = n => String(n).padStart(2, '0');
@@ -1942,6 +2032,7 @@ function desfazer() {
 // ---------- render: painel ----------
 function render() {
   $('hFaz').textContent = ST.cfg.faz || '';
+  renderEquipe();
   const rs = regioes(), selR = $('fReg');
   if (filtro() !== '*' && !rs.includes(filtro())) ST.cfg.filtro = '*';
   selR.innerHTML = '<option value="*">Todas as regiões</option>' + rs.map(r => `<option value="${esc(r)}">${esc(regNome(r))}</option>`).join('');
@@ -2496,6 +2587,7 @@ $('bNum').onclick = () => {
   if (numerando) poly0();
 };
 function cliquePasto(p, latlng) {
+  if (NV.on && NV.papel === 'campo') return; // pessoal de campo só consulta
   if (numerando) {
     const r = regDe(p);
     if (!(r in proxNum)) proxNum[r] = Math.max(1, +$('numIni').value || 1);
@@ -2750,12 +2842,269 @@ $('bPub').onclick = () => {
   toast('index.html gerado com os dados atuais. É esse arquivo que vai para o GitHub.', 5000);
 };
 
+// ================== NUVEM (Firebase: login + sincronização) ==================
+const FB_CONFIG = {
+  apiKey: 'AIzaSyCo_KlE2eW0q41a3Ktro_LOnup-ZB4D4tY',
+  authDomain: 'pastejo-olavo.firebaseapp.com',
+  projectId: 'pastejo-olavo',
+  storageBucket: 'pastejo-olavo.firebasestorage.app',
+  messagingSenderId: '798120473467',
+  appId: '1:798120473467:web:a9dfceaeda47fcccbb43de'
+};
+const NV = { on: false, fid: null, papel: null, user: null, db: null, auth: null, faz: null,
+  dados: {}, meta: {}, prontos: new Set(), last: { pastos: {}, lotes: {}, ev: {} }, lastCfg: null, unsub: [], pend: false };
+const FS = () => window.FBX.fs, AU = () => window.FBX.au;
+let modoLocal = false; // escolheu "usar sem login" neste aparelho
+const gravarModo = v => { modoLocal = v; if (DB.db) DB.set('modo', v ? 'local' : '').catch(() => { }); };
+
+function msgErro(e) {
+  const c = (e && e.code) || '';
+  const M = {
+    'auth/invalid-credential': 'E-mail ou senha incorretos.', 'auth/wrong-password': 'Senha incorreta.', 'auth/user-not-found': 'Não existe conta com esse e-mail.',
+    'auth/email-already-in-use': 'Já existe uma conta com esse e-mail. Use “Entrar”.', 'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
+    'auth/invalid-email': 'E-mail inválido.', 'auth/too-many-requests': 'Muitas tentativas. Espere alguns minutos.',
+    'auth/network-request-failed': 'Sem conexão com a internet.', 'auth/unauthorized-domain': 'Este endereço não está autorizado no Firebase (Authentication → Configurações → Domínios autorizados).',
+    'auth/popup-blocked': 'O navegador bloqueou a janela do Google. Libere pop-ups ou use e-mail e senha.', 'auth/popup-closed-by-user': 'Login com Google cancelado.',
+    'permission-denied': 'Sem permissão para essa ação.', 'unavailable': 'Sem conexão: vai sincronizar quando o sinal voltar.'
+  };
+  return M[c] || (e && e.message) || String(e);
+}
+
+// ---------- telas de login / fazenda ----------
+function telaLogin(modo, msg) {
+  const ov = $('nvOv'); ov.hidden = false;
+  $('nvLogin').hidden = modo !== 'login'; $('nvFaz').hidden = modo !== 'faz'; $('nvCarr').hidden = modo !== 'carregando';
+  $('nvMsg').textContent = msg || ''; $('nvMsg2').textContent = msg || '';
+  if (modo === 'faz') {
+    $('nvQuem').textContent = NV.user ? NV.user.email : '';
+    const n = ST.pastos.length, l = ST.lotes.length, ev = ST.ev.length;
+    $('nvLevarBox').hidden = !(n || l || ev);
+    $('nvLevarTxt').textContent = `Levar os dados já cadastrados neste aparelho (${n} pastos, ${l} lotes, ${ev} movimentações)`;
+    const cv = new URLSearchParams(location.search).get('convite');
+    if (cv) $('nvCod').value = cv;
+  }
+}
+function fecharTelas() { $('nvOv').hidden = true; }
+
+function statusNuvem() {
+  const el = $('nvSt'); if (!el) return;
+  if (!NV.on) { el.textContent = ''; el.hidden = true; return; }
+  el.hidden = false;
+  const pend = Object.values(NV.meta).some(m => m && m.pend), off = navigator.onLine === false || Object.values(NV.meta).some(m => m && m.cache && !m.pend && navigator.onLine === false);
+  el.className = 'nvst' + (off ? ' off' : pend ? ' pend' : '');
+  el.textContent = off ? '● offline · salvo no aparelho' : pend ? '● enviando…' : '● sincronizado';
+}
+window.addEventListener('online', statusNuvem); window.addEventListener('offline', statusNuvem);
+
+// ---------- serialização (mesmo formato na ida e na volta) ----------
+function ser(col, o, i) {
+  if (col === 'pastos') return { nome: o.nome || '', reg: o.reg || '', ha: o.ha ?? null, ocup: o.ocup ?? null, desc: o.desc ?? null, geo: o.geo ? JSON.stringify(o.geo) : null, ord: i };
+  if (col === 'lotes') return { nome: o.nome || '', cab: o.cab ?? null, cor: o.cor || '#B4532E', reg: o.reg || '' };
+  return { lote: o.lote, pasto: o.pasto, ent: o.ent, sai: o.sai ?? null, est: !!o.est };
+}
+const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '' });
+const arrDe = col => col === 'pastos' ? ST.pastos : col === 'lotes' ? ST.lotes : ST.ev;
+
+// envia para a nuvem só o que mudou desde o último estado conhecido
+function sincronizar() {
+  if (!NV.on || !NV.fid) return;
+  const F = FS(), adm = NV.papel === 'admin', ops = [];
+  (adm ? ['pastos', 'lotes', 'ev'] : ['ev']).forEach(col => {
+    const vistos = new Set();
+    arrDe(col).forEach((o, i) => {
+      const d = ser(col, o, i), j = JSON.stringify(d); vistos.add(o.id);
+      if (NV.last[col][o.id] !== j) { ops.push(['set', col, o.id, d]); NV.last[col][o.id] = j; }
+    });
+    Object.keys(NV.last[col]).forEach(id => { if (!vistos.has(id)) { ops.push(['del', col, id]); delete NV.last[col][id]; } });
+  });
+  if (adm) { const c = cfgNuvem(), j = JSON.stringify(c); if (j !== NV.lastCfg) { ops.push(['cfg', c]); NV.lastCfg = j; } }
+  for (let k = 0; k < ops.length; k += 400) {
+    const b = F.writeBatch(NV.db);
+    ops.slice(k, k + 400).forEach(op => {
+      if (op[0] === 'set') b.set(F.doc(NV.db, 'fazendas', NV.fid, op[1], op[2]), op[3]);
+      else if (op[0] === 'del') b.delete(F.doc(NV.db, 'fazendas', NV.fid, op[1], op[2]));
+      else b.update(F.doc(NV.db, 'fazendas', NV.fid), { cfg: op[1] });
+    });
+    b.commit().catch(e => { toast('Não foi salvo na nuvem: ' + msgErro(e), 6000); });
+  }
+  statusNuvem();
+}
+
+// monta o estado do app a partir do que veio da nuvem
+function montar() {
+  if (!['faz', 'pastos', 'lotes', 'ev'].every(k => NV.prontos.has(k))) return;
+  const filtro = ST.cfg.filtro, notif = ST.notif;
+  const ps = NV.dados.pastos.slice().sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0) || String(a.nome).localeCompare(String(b.nome), 'pt-BR', { numeric: true }));
+  ST.pastos = ps.map(d => { let geo = null; try { geo = d.geo ? JSON.parse(d.geo) : null; } catch (e) { } return { id: d.id, nome: d.nome, reg: d.reg || '', ha: d.ha ?? null, ocup: d.ocup ?? null, desc: d.desc ?? null, geo }; });
+  ST.lotes = NV.dados.lotes.map(d => ({ id: d.id, nome: d.nome, cab: d.cab ?? null, cor: d.cor || '#B4532E', reg: d.reg || '' }));
+  ST.ev = NV.dados.ev.map(d => { const e = { id: d.id, lote: d.lote, pasto: d.pasto, ent: d.ent, sai: d.sai ?? null }; if (d.est) e.est = true; return e; });
+  ST.cfg = Object.assign(novoEstado().cfg, (NV.faz && NV.faz.cfg) || {}, { filtro }); ST.notif = notif || {};
+  NV.last = { pastos: {}, lotes: {}, ev: {} };
+  ['pastos', 'lotes', 'ev'].forEach(col => arrDe(col).forEach((o, i) => { NV.last[col][o.id] = JSON.stringify(ser(col, o, i)); }));
+  NV.lastCfg = JSON.stringify(cfgNuvem());
+  fecharTelas(); aplicarPapel(); statusNuvem(); renderSeguro();
+}
+const editando = () => { const a = document.activeElement; return a && /INPUT|SELECT|TEXTAREA/.test(a.tagName) && a.closest('main,.leaflet-popup'); };
+function renderSeguro() { if (editando()) { NV.pend = true; return; } NV.pend = false; render(); }
+document.addEventListener('focusout', () => { if (NV.pend) setTimeout(() => { if (NV.pend && !editando()) { NV.pend = false; render(); } }, 120); });
+
+function desconectar() { NV.unsub.forEach(u => { try { u(); } catch (e) { } }); NV.unsub = []; NV.prontos = new Set(); NV.dados = {}; NV.meta = {}; }
+function conectar(fid) {
+  const F = FS(); desconectar();
+  NV.fid = fid; NV.on = true;
+  NV.unsub.push(F.onSnapshot(F.doc(NV.db, 'fazendas', fid), { includeMetadataChanges: true }, s => {
+    if (!s.exists()) return semAcesso();
+    NV.faz = s.data(); NV.papel = (NV.faz.membros || {})[NV.user.uid] || null;
+    if (!NV.papel) return semAcesso();
+    NV.meta.faz = { pend: s.metadata.hasPendingWrites, cache: s.metadata.fromCache };
+    NV.prontos.add('faz'); montar(); renderEquipe();
+  }, e => semAcesso(e)));
+  ['pastos', 'lotes', 'ev'].forEach(col => NV.unsub.push(F.onSnapshot(F.collection(NV.db, 'fazendas', fid, col), { includeMetadataChanges: true }, s => {
+    NV.dados[col] = s.docs.map(d => ({ id: d.id, ...d.data() }));
+    NV.meta[col] = { pend: s.metadata.hasPendingWrites, cache: s.metadata.fromCache };
+    NV.prontos.add(col); montar();
+  }, e => semAcesso(e))));
+}
+function semAcesso(e) {
+  desconectar(); NV.on = false; NV.fid = null;
+  telaLogin('faz', e && e.code !== 'permission-denied' ? msgErro(e) : 'Você não tem acesso a esta fazenda (ou ela foi removida). Crie uma nova ou entre com um código de convite.');
+}
+
+async function entrou(u) {
+  NV.user = u;
+  if (!u) { desconectar(); NV.on = false; statusNuvem(); aplicarPapel(); if (modoLocal && !new URLSearchParams(location.search).get('convite')) { fecharTelas(); renderEquipe(); return; } return telaLogin('login'); }
+  if (modoLocal) gravarModo(false);
+  telaLogin('carregando');
+  const F = FS();
+  try {
+    const cv = new URLSearchParams(location.search).get('convite');
+    const us = await F.getDoc(F.doc(NV.db, 'usuarios', u.uid));
+    const fid = us.exists() ? us.data().fid : null;
+    if (cv && (!fid || confirm('Você recebeu um convite para outra fazenda. Entrar nela agora?'))) return aceitarConvite(cv);
+    if (fid) return conectar(fid);
+    telaLogin('faz');
+  } catch (e) { telaLogin('faz', msgErro(e)); }
+}
+
+async function criarFazenda() {
+  const F = FS(), u = NV.user, nome = $('nvNomeFaz').value.trim() || ST.cfg.faz || 'Minha fazenda';
+  const levar = !$('nvLevarBox').hidden && $('nvLevar').checked;
+  $('nvCriar').disabled = true;
+  try {
+    const ref = F.doc(F.collection(NV.db, 'fazendas'));
+    if (!levar) { ST = novoEstado(); }
+    ST.cfg.faz = ST.cfg.faz || nome;
+    await F.setDoc(ref, { nome, membros: { [u.uid]: 'admin' }, nomes: { [u.uid]: { email: u.email || '' } }, cfg: cfgNuvem(), criadoEm: F.serverTimestamp() });
+    await F.setDoc(F.doc(NV.db, 'usuarios', u.uid), { fid: ref.id });
+    NV.fid = ref.id; NV.papel = 'admin'; NV.on = true; NV.last = { pastos: {}, lotes: {}, ev: {} }; NV.lastCfg = null;
+    if (levar) sincronizar(); // sobe tudo o que estava no aparelho
+    conectar(ref.id);
+    toast(levar ? 'Fazenda criada e dados enviados para a nuvem.' : 'Fazenda criada.', 5000);
+  } catch (e) { telaLogin('faz', msgErro(e)); }
+  $('nvCriar').disabled = false;
+}
+
+async function aceitarConvite(cod) {
+  const F = FS(), u = NV.user; cod = String(cod || '').trim().toLowerCase();
+  if (!cod) return telaLogin('faz', 'Digite o código do convite.');
+  try {
+    const cv = await F.getDoc(F.doc(NV.db, 'convites', cod));
+    if (!cv.exists()) return telaLogin('faz', 'Convite não encontrado. Confira o código.');
+    const c = cv.data();
+    if (c.validoAte && c.validoAte.toMillis() < Date.now()) return telaLogin('faz', 'Este convite expirou. Peça um novo ao administrador.');
+    await F.updateDoc(F.doc(NV.db, 'fazendas', c.fid), { ['membros.' + u.uid]: c.papel, ['nomes.' + u.uid]: { email: u.email || '' }, convite: cod });
+    await F.setDoc(F.doc(NV.db, 'usuarios', u.uid), { fid: c.fid });
+    history.replaceState(null, '', location.pathname);
+    ST = novoEstado(); conectar(c.fid); toast('Você entrou na fazenda.', 4000);
+  } catch (e) { telaLogin('faz', msgErro(e)); }
+}
+
+// ---------- equipe (administrador) ----------
+function renderEquipe() {
+  const box = $('eqBox'); if (!box) return;
+  $('nvConta').hidden = !NV.user;
+  document.querySelector('.nvsemweb').hidden = !(location.protocol === 'file:' && !(window.FBX && window.FBX.mock));
+  if (!NV.user) { $('eqCard').hidden = true; $('nvEntrarBox').hidden = !NV.auth; return; }
+  $('nvEntrarBox').hidden = true;
+  $('nvContaTxt').textContent = `${NV.user.email} · ${(NV.faz && NV.faz.nome) || ''} · ${NV.papel === 'admin' ? 'administrador' : 'campo'}`;
+  $('eqCard').hidden = NV.papel !== 'admin';
+  if (NV.papel !== 'admin' || !NV.faz) return;
+  const m = NV.faz.membros || {}, nm = NV.faz.nomes || {}, nAdm = Object.values(m).filter(x => x === 'admin').length;
+  box.innerHTML = Object.keys(m).map(uid => `<tr data-u="${uid}"><td>${esc((nm[uid] && nm[uid].email) || uid)}${uid === NV.user.uid ? ' <span class="hint">(você)</span>' : ''}</td>
+    <td><select data-a="papel" ${uid === NV.user.uid && nAdm < 2 ? 'disabled' : ''}><option value="admin"${m[uid] === 'admin' ? ' selected' : ''}>Administrador</option><option value="campo"${m[uid] === 'campo' ? ' selected' : ''}>Campo</option></select></td>
+    <td>${uid === NV.user.uid ? '' : '<button class="peq del" data-a="rem">Remover</button>'}</td></tr>`).join('');
+  box.querySelectorAll('tr').forEach(tr => {
+    const uid = tr.dataset.u, F = FS(), ref = F.doc(NV.db, 'fazendas', NV.fid);
+    tr.querySelector('[data-a="papel"]').onchange = ev => F.updateDoc(ref, { ['membros.' + uid]: ev.target.value }).catch(e => toast(msgErro(e)));
+    const r = tr.querySelector('[data-a="rem"]');
+    if (r) r.onclick = () => { if (confirm('Remover o acesso desta pessoa?')) F.updateDoc(ref, { ['membros.' + uid]: F.deleteField(), ['nomes.' + uid]: F.deleteField() }).catch(e => toast(msgErro(e))); };
+  });
+}
+async function gerarConvite() {
+  const F = FS(), papel = $('eqPapel').value;
+  const cod = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => 'abcdefghjkmnpqrstuvwxyz23456789'[b % 31]).join('');
+  try {
+    await F.setDoc(F.doc(NV.db, 'convites', cod), { fid: NV.fid, papel, validoAte: F.Timestamp.fromMillis(Date.now() + 7 * DAY), criadoPor: NV.user.uid });
+    const link = location.origin + location.pathname + '?convite=' + cod;
+    $('eqLink').hidden = false;
+    $('eqLinkTxt').value = link;
+    $('eqWa').href = 'https://wa.me/?text=' + encodeURIComponent(`Convite para o app de pastejo${NV.faz ? ' (' + NV.faz.nome + ')' : ''}: abra o link, crie sua conta e você já entra na fazenda.\n${link}\n(código: ${cod}, vale 7 dias)`);
+  } catch (e) { toast(msgErro(e), 6000); }
+}
+function aplicarPapel() {
+  const campo = NV.on && NV.papel === 'campo';
+  document.body.classList.toggle('campo', campo);
+  document.body.classList.toggle('nuvem', NV.on);
+}
+
+// ---------- inicialização ----------
+function iniciarNuvem() {
+  const fbx = window.FBX;
+  const semNuvem = !fbx || fbx.erro || (location.protocol === 'file:' && !fbx.mock);
+  if (semNuvem) { // arquivo local ou sem internet para carregar o Firebase: segue no modo do aparelho
+    if (fbx && fbx.erro && location.protocol !== 'file:') toast('Sem conexão para entrar na nuvem: usando os dados deste aparelho.', 5000);
+    renderEquipe(); return;
+  }
+  const A = AU(), F = FS();
+  const app = fbx.a.initializeApp(FB_CONFIG);
+  NV.auth = A.getAuth(app);
+  try { NV.db = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
+  catch (e) { NV.db = F.getFirestore(app); }
+  A.onAuthStateChanged(NV.auth, u => entrou(u));
+}
+$('nvEntrar').onclick = async () => {
+  try { await AU().signInWithEmailAndPassword(NV.auth, $('nvEmail').value.trim(), $('nvSenha').value); }
+  catch (e) { telaLogin('login', msgErro(e)); }
+};
+$('nvCriarConta').onclick = async () => {
+  try { await AU().createUserWithEmailAndPassword(NV.auth, $('nvEmail').value.trim(), $('nvSenha').value); }
+  catch (e) { telaLogin('login', msgErro(e)); }
+};
+$('nvEsqueci').onclick = async () => {
+  const em = $('nvEmail').value.trim(); if (!em) return telaLogin('login', 'Digite o e-mail e clique de novo em “Esqueci a senha”.');
+  try { await AU().sendPasswordResetEmail(NV.auth, em); telaLogin('login', 'Enviamos um e-mail para redefinir a senha (confira o spam).'); }
+  catch (e) { telaLogin('login', msgErro(e)); }
+};
+$('nvGoogle').onclick = async () => {
+  try { await AU().signInWithPopup(NV.auth, new (AU().GoogleAuthProvider)()); }
+  catch (e) { telaLogin('login', msgErro(e)); }
+};
+$('nvLocal').onclick = () => { gravarModo(true); NV.on = false; fecharTelas(); render(); toast('Usando só neste aparelho. Para sincronizar, entre em “Pastos e lotes → Conta”.', 5000); };
+$('nvCriar').onclick = criarFazenda;
+$('nvUsarCod').onclick = () => aceitarConvite($('nvCod').value);
+$('nvSair2').onclick = $('nvSair').onclick = async () => { if (NV.auth) await AU().signOut(NV.auth); location.reload(); };
+$('nvEntrarBtn').onclick = () => { if (NV.auth) telaLogin('login'); else toast('Sem conexão com a nuvem agora.'); };
+$('eqGerar').onclick = gerarConvite;
+$('eqCopiar').onclick = () => { const i = $('eqLinkTxt'); i.select(); try { navigator.clipboard.writeText(i.value); toast('Link copiado.'); } catch (e) { document.execCommand('copy'); } };
+['nvEmail', 'nvSenha'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('nvEntrar').click(); }));
+
 // ---------- início ----------
 (async () => {
   tick();
   try {
     await DB.open(); podeSalvar = true;
     const raw = await DB.get('estado');
+    modoLocal = (await DB.get('modo')) === 'local';
     const carregar = d => { ST = Object.assign(novoEstado(), d); ST.cfg = Object.assign(novoEstado().cfg, d.cfg || {}); ST.notif = ST.notif || {}; };
     if (raw) carregar(JSON.parse(raw));
     else { // primeira vez neste aparelho: usa os dados que vieram dentro do arquivo, se houver
@@ -2764,6 +3113,14 @@ $('bPub').onclick = () => {
   } catch (e) { podeSalvar = false; $('semArmaz').hidden = false; }
   notifStatus();
   render(); checarNotif();
+  // nuvem: espera o Firebase carregar (vem por <script type="module">)
+  if (window.FBX) iniciarNuvem();
+  else {
+    let feito = false;
+    window.addEventListener('fb-pronto', () => { if (!feito) { feito = true; iniciarNuvem(); } }, { once: true });
+    setTimeout(() => { if (!feito) { feito = true; window.FBX = window.FBX || { erro: 'tempo' }; iniciarNuvem(); } }, 12000);
+  }
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
 window.__ST = () => ST; window.__map = () => map; window.__clique = id => cliquePasto(P(id), null);
 })();
