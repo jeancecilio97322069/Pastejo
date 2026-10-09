@@ -939,6 +939,25 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 .avitem .mudar{margin-top:5px;font-size:15px;font-weight:700;color:var(--mata)}
 .avitem .mudar.venc{color:var(--alerta)}
 .avitem details{margin-top:8px}
+.avitem .mudar.aval{color:#9A6408}
+.passar{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.pdest{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:var(--mut)}
+.pdest select{font-size:15px;padding:8px}
+.bpassar{background:var(--ok);border-color:var(--ok);color:#fff;font-size:17px;font-weight:700;padding:12px 14px;border-radius:10px;gap:10px;width:100%}
+.bpassar:hover{background:#287A43}
+.bpassar .ico{animation:none;box-shadow:0 0 0 2px #fff}
+.mais summary{font-size:12.5px;color:var(--mut);font-weight:500}
+.passov{position:fixed;inset:0;z-index:4500;background:rgba(15,25,20,.6);display:flex;align-items:center;justify-content:center;padding:18px}
+.passov[hidden]{display:none}
+.passcard{background:var(--papel);border-radius:16px;padding:22px 20px;width:100%;max-width:360px;text-align:center;box-shadow:0 12px 40px rgba(0,0,0,.4)}
+.passcard .ico{animation:none}
+.passcard h3{margin:10px 0 6px;font-size:21px}
+.passcard p{margin:6px 0}
+.passrota{display:flex;align-items:center;justify-content:center;gap:12px;font-size:26px;font-weight:800;margin:12px 0;color:var(--mata)}
+.passrota span{background:#E3EADC;border-radius:10px;padding:4px 14px}
+.passrota .novo{background:#E8F3EA;color:var(--ok)}
+.bsim{width:100%;background:var(--ok);border-color:var(--ok);color:#fff;font-size:18px;font-weight:700;padding:14px;border-radius:10px;margin-top:10px}
+.bnao{width:100%;font-size:16px;padding:12px;border-radius:10px;margin-top:8px}
 .avitem summary{cursor:pointer;font-weight:600;color:var(--mata);font-size:13px;padding:4px 0}
 .avitem details .confirma{margin-top:6px}
 .avitem details select{flex:1;min-width:150px}
@@ -1048,6 +1067,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
         <label class="f">Dias no pasto (ocupação) <input type="number" id="cOcup" min="0.25" step="0.25"></label>
         <label class="f">Dias de recuperação (descanso) <input type="number" id="cDesc" min="1" step="1"></label>
         <label class="f">Horário das mudanças <input type="time" id="cHora" step="1800"></label>
+        <label class="f">Avaliação: dias antes/depois <input type="number" id="cFolga" min="0" max="5" step="1"></label>
         <label class="f">WhatsApp do responsável <input type="tel" id="cTel" placeholder="5514999998888"></label>
       </div>
       <div class="hint">Cada pasto pode ter os próprios dias na tabela abaixo; em branco, vale o padrão daqui. WhatsApp com DDI + DDD, só números (em branco, o WhatsApp pede o contato na hora).</div>
@@ -1129,6 +1149,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
   </section>
 </main>
 <div class="toast" id="toast"></div>
+<div id="passOv" class="passov" hidden></div>
 <div id="climaPop" class="climapop" hidden></div>
 <div id="nvOv" class="nvov" hidden>
   <div class="nvcard">
@@ -1773,7 +1794,7 @@ if (qs.get('agora')) { const t = new Date(qs.get('agora')).getTime(); if (isFini
 const now = () => Date.now() + offset;
 
 // ---------- estado ----------
-const novoEstado = () => ({ v: 1, cfg: { ocup: 2, desc: 7, hora: 7, tel: '', faz: '' }, pastos: [], lotes: [], ev: [], notif: {} });
+const novoEstado = () => ({ v: 1, cfg: { ocup: 2, desc: 7, hora: 7, folga: 1, tel: '', faz: '' }, pastos: [], lotes: [], ev: [], notif: {} });
 let ST = novoEstado();
 let ultimo = null;           // { antes: ev[], recibo: {...} } para desfazer
 const recibos = {};          // por lote: resumo da última mudança confirmada nesta sessão
@@ -1879,6 +1900,9 @@ const lotesDaRegiao = r => ST.lotes.filter(l => regLote(l) === r);
 const horaMud = () => { const h = +ST.cfg.hora; return isFinite(h) && h >= 0 && h < 24 ? h : 7; };
 function naHora(t, min) { const d = new Date(t); d.setHours(Math.floor(horaMud()), Math.round(horaMud() % 1 * 60), 0, 0); let r = d.getTime(); while (min != null && r <= min) r += DAY; return r; }
 const prazoDe = (ent, p) => naHora(ent + par(p, 'ocup') * DAY, ent);
+const folga = () => { const f = +ST.cfg.folga; return isFinite(f) && f >= 0 ? f : 1; };
+// janela: avaliação visual (prazo - folga) · mudança prevista (prazo) · limite para segurar (prazo + folga)
+const janela = prazo => ({ aval: prazo - folga() * DAY, prazo, lim: prazo + folga() * DAY });
 const fimRecDe = (sai, p) => naHora(sai + par(p, 'desc') * DAY, sai);
 function horaPadrao() { const t = now(), h = naHora(t); return h <= t ? h : t; }
 const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -1999,8 +2023,9 @@ function alertas(t = now()) {
     const p = P(o.pasto); if (!p) continue;
     if (!visivel(p)) continue;
     const prazo = prazoDe(o.ent, p), s = sugestao(l), dest = s && s.p ? s.p.nome : 'nenhum pasto pronto', rg = regDe(p) ? ' · ' + regDe(p) : '';
-    if (t >= prazo) out.push({ nv: 'alto', key: 'mud:' + o.id, tit: `${l.nome}${rg}: hora de mudar de pasto`, txt: `Prazo no ${p.nome} venceu há ${fDur(t - prazo)}. Sugestão: ${dest}.` });
-    else if (prazo - t <= DAY) out.push({ nv: 'medio', key: 'mud24:' + o.id, tit: `${l.nome}${rg}: mudança em ${fDur(prazo - t)}`, txt: `Sai do ${p.nome} em ${fDT(prazo)}. Sugestão: ${dest}.` });
+    const J = janela(prazo);
+    if (t >= J.lim) out.push({ nv: 'alto', key: 'mud:' + o.id, tit: `${l.nome}${rg}: hora de mudar de pasto`, txt: `Prazo no ${p.nome} venceu há ${fDur(t - prazo)}. Sugestão: ${dest}.` });
+    else if (t >= J.aval) out.push({ nv: 'medio', key: 'mud24:' + o.id, tit: `${l.nome}${rg}: mudança em ${fDur(prazo - t)}`, txt: `Sai do ${p.nome} em ${fDT(prazo)}. Sugestão: ${dest}.` });
   }
   for (const p of ST.pastos) {
     if (!visivel(p)) continue;
@@ -2118,15 +2143,20 @@ function renderAvisos() {
   const seq = ST.lotes.map(l => ({ l, o: aberto(l.id) })).filter(x => x.o && P(x.o.pasto) && visivel(P(x.o.pasto)))
     .map(x => { const p = P(x.o.pasto); return { ...x, p, prazo: prazoDe(x.o.ent, p), s: sugestao(x.l) }; })
     .sort((a, b) => a.prazo - b.prazo);
-  const nVenc = seq.filter(x => t >= x.prazo).length;
+  const nVenc = seq.filter(x => t >= janela(x.prazo).lim).length;
   const itSeq = seq.map(x => {
-    const atras = t >= x.prazo, perto = !atras && x.prazo - t <= DAY, nv = atras ? 'alto' : perto ? 'medio' : '';
+    const J = janela(x.prazo), atras = t >= J.lim, nv = atras ? 'alto' : t >= J.aval ? 'medio' : '';
+    let grande, peq;
+    if (atras) { grande = 'Mudança atrasada'; peq = `o limite era ${fDia(J.lim)}`; }
+    else if (t >= x.prazo) { grande = 'Hoje é dia de passar o gado'; peq = folga() ? `se o pasto ainda tiver capim, pode segurar até ${fDia(J.lim)}` : ''; }
+    else if (t >= J.aval) { grande = 'Dia de avaliar o pasto'; peq = `mudança prevista ${fDia(x.prazo)} · se o pasto já estiver rapado, pode passar hoje`; }
+    else { grande = 'Mudar ' + fDia(x.prazo); peq = folga() ? `avaliação do pasto ${fDia(J.aval)}` : ''; }
     const dest = x.s && x.s.p ? x.s.p.nome : '—';
     const pct = Math.min(1, (t - x.o.ent) / (x.prazo - x.o.ent));
     return `<div class="avitem lote ${nv}" data-l="${x.l.id}"><span class="dot" style="background:${x.l.cor}"></span><div class="tx">
       <div class="lnome"><b>${esc(x.l.nome)}</b><span class="t">${x.l.cab ? x.l.cab + ' cab.' : ''}</span></div>
       <div>No <b>${esc(x.p.nome)}</b> → próximo <b>${esc(dest)}</b>${x.s && x.s.espera > 0 ? ' <span class="t">(ainda recuperando)</span>' : ''}</div>
-      <div class="mudar${atras ? ' venc' : ''}">${atras ? 'Mudança atrasada · era ' : 'Mudar '}${fDia(x.prazo)}</div>
+      <div class="mudar${atras ? ' venc' : nv ? ' aval' : ''}">${grande}</div>${peq ? `<div class="t">${peq}</div>` : ''}
       <div class="barra"><i style="width:${pct * 100}%;background:${atras ? 'var(--alerta)' : x.l.cor}"></i></div>
       ${formLote(x.l, x.o, x.s)}</div></div>`;
   }).join('') + ST.lotes.filter(l => !aberto(l.id) && (filtro() === '*' || regLote(l) === filtro())).map(l => {
@@ -2155,23 +2185,45 @@ function renderAvisos() {
     <div class="avcard rec"><div class="avcab">${icone('recuperando', '#C98B3A', false, 26)}Pastos em recuperação<span class="n">${nRec}</span></div>${itRec}</div>
     <div class="avcard ok"><div class="avcab">${icone('pronto', '#5CC46A', false, 26)}Recuperados<span class="n">${nOk}</span></div>${itOk}</div>`;
   box.querySelectorAll('.avitem.lote').forEach(el => { const l = Lt(el.dataset.l); if (l) ligarCardLote(l); });
+  box.querySelectorAll('[data-passar]').forEach(b => b.onclick = () => { const l = Lt(b.dataset.passar), sel = b.closest('.passar').querySelector('[data-k="dest"]'); confirmarPassagem(l, sel.value); });
   box.querySelectorAll('details[data-d]').forEach(d => d.ontoggle = () => { if (d.open) detAbertos.add(d.dataset.d); else detAbertos.delete(d.dataset.d); });
 }
 const detAbertos = new Set();
 function formLote(l, o, sug) {
-  const rec = recibos[l.id], aberto0 = detAbertos.has(l.id);
-  const acoes = o ? `<div class="acoes"><button class="peq" data-k="ics">Lembrete na agenda</button><a class="btn peq" data-k="gcal" target="_blank" rel="noopener">Google Agenda</a><a class="btn peq" data-k="wa" target="_blank" rel="noopener">WhatsApp</a><button class="peq del" data-k="ret">Retirar do rodízio</button></div>` : '';
+  const rec = recibos[l.id];
+  const reg = o ? regDe(P(o.pasto)) : (sug && sug.p ? regDe(sug.p) : regLote(l));
+  const ops = opcoesDestino(l, sug, reg);
   let porque = '';
   if (o && sug && sug.p) {
-    if (sug.espera > 0) porque = `Nenhum pasto estará recuperado no horário. O mais adiantado, ${esc(sug.p.nome)}, fica pronto ${fDia(sug.pronto)}.`;
-    else if (sug.pulou && sug.prox) porque = sug.prox.ocupado ? `O próximo da sequência (${esc(sug.prox.p.nome)}) está ocupado.` : `O próximo da sequência (${esc(sug.prox.p.nome)}) ainda está recuperando.`;
+    if (sug.espera > 0) porque = `Nenhum pasto está recuperado ainda. O mais adiantado é o ${esc(sug.p.nome)} (pronto ${fDia(sug.pronto)}).`;
+    else if (sug.pulou && sug.prox) porque = sug.prox.ocupado ? `O ${esc(sug.prox.p.nome)} está ocupado.` : `O ${esc(sug.prox.p.nome)} ainda está recuperando.`;
   }
-  return `<details data-d="${l.id}"${aberto0 ? ' open' : ''}><summary>${o ? 'Registrar mudança' : 'Colocar no pasto'}</summary>
-    ${porque ? `<div class="t" style="margin-top:6px">${porque}</div>` : ''}
-    <div class="confirma"><div class="row"><select data-k="dest" aria-label="Pasto de destino">${opcoesDestino(l, sug)}</select>
-      <input type="datetime-local" data-k="t" value="${toInput(horaPadrao())}" aria-label="Data e hora"></div>
-      <div class="row"><button class="ok" data-k="conf">${o ? 'Confirmar mudança feita' : 'Confirmar entrada no pasto'}</button></div></div>
-    ${acoes}${rec ? reciboHtml(l, rec) : ''}</details>`;
+  const mais = o ? `<details class="mais" data-d="${l.id}"${detAbertos.has(l.id) ? ' open' : ''}><summary>Mais opções</summary><div class="acoes">
+      <button class="peq" data-k="ics">Lembrete na agenda</button><a class="btn peq" data-k="gcal" target="_blank" rel="noopener">Google Agenda</a>
+      <a class="btn peq" data-k="wa" target="_blank" rel="noopener">WhatsApp</a><button class="peq del" data-k="ret">Retirar do rodízio</button></div></details>` : '';
+  return `<div class="passar">
+    ${ops ? `<label class="pdest">${o ? 'Passar para o pasto' : 'Colocar no pasto'}<select data-k="dest">${ops}</select></label>
+    ${porque ? `<div class="t">${porque}</div>` : ''}
+    <button class="bpassar" data-passar="${l.id}">${icone('boi', l.cor, false, 26)}${o ? 'Passar o gado' : 'Colocar o gado'}</button>` : '<div class="t">Nenhum pasto livre nesta região.</div>'}
+    <input type="hidden" data-k="t" value="${toInput(horaPadrao())}">
+  </div>${mais}${rec && rec.painel ? reciboHtml(l, rec) : ''}`;
+}
+// confirmação dupla, com botões grandes
+function confirmarPassagem(l, destId) {
+  const o = aberto(l.id), de = o ? P(o.pasto) : null, para = P(destId);
+  if (!para) return toast('Escolha o pasto.');
+  const t = horaPadrao(), reg = regDe(para);
+  const ov = $('passOv');
+  ov.innerHTML = `<div class="passcard">${icone('boi', l.cor, false, 46)}
+    <h3>${o ? 'Passar o gado?' : 'Colocar o gado?'}</h3>
+    <p><b>${esc(l.nome)}</b>${l.cab ? ' · ' + l.cab + ' cab.' : ''}${reg ? '<br><span class="t">' + esc(reg) + '</span>' : ''}</p>
+    <div class="passrota">${de ? `<span>${esc(de.nome)}</span><b>→</b>` : ''}<span class="novo">${esc(para.nome)}</span></div>
+    <p class="t">Vai ficar registrado ${fDia(t)}.</p>
+    <button class="bsim" id="passSim">Sim, passar o gado</button>
+    <button class="bnao" id="passNao">Cancelar</button></div>`;
+  ov.hidden = false;
+  $('passNao').onclick = () => { ov.hidden = true; };
+  $('passSim').onclick = () => { ov.hidden = true; confirmarMudanca(l, destId, t); if (recibos[l.id]) { recibos[l.id].painel = true; render(); } };
 }
 function irParaLote(id) {
   abrirAba('painel'); detAbertos.add(id); render();
@@ -2211,9 +2263,9 @@ function tilesReg(r) {
   }).join('') + '</div>';
   }
 }
-function opcoesDestino(l, sug) {
+function opcoesDestino(l, sug, soReg) {
   const o = aberto(l.id), rAt = o ? regDe(P(o.pasto)) : (sug && sug.p ? regDe(sug.p) : null);
-  const rs = regioes().sort((a, b) => (b === rAt) - (a === rAt));
+  const rs = soReg != null && regioes().includes(soReg) ? [soReg] : regioes().sort((a, b) => (b === rAt) - (a === rAt));
   return rs.map(r => {
     const ops = [];
     seqReg(r).forEach(p => {
@@ -2287,6 +2339,7 @@ function ligarCardLote(l) {
   const q = k => c.querySelector(`[data-k="${k}"]`);
   const o = aberto(l.id);
   if (q('conf')) q('conf').onclick = () => confirmarMudanca(l, q('dest').value, fromInput(q('t').value));
+  if (!q('t')) return;
   if (o) {
     const p = P(o.pasto), ev = eventoMudanca(l, o), s = sugestao(l);
     q('ics').onclick = () => baixarIcs([ev], `lembrete_${l.nome.replace(/\W+/g, '_')}.ics`);
@@ -2311,7 +2364,7 @@ function ligarCardLote(l) {
 // ---------- render: configuração ----------
 function renderConfig() {
   const ae = document.activeElement, foco = ae && ae.closest && ae.closest('#t-config') ? (ae.id || ae.dataset.f + ':' + (ae.closest('tr') || {}).dataset?.id) : null;
-  $('cFaz').value = ST.cfg.faz || ''; $('cOcup').value = ST.cfg.ocup; $('cDesc').value = ST.cfg.desc; $('cHora').value = z2(Math.floor(horaMud())) + ':' + z2(Math.round(horaMud() % 1 * 60)); $('cTel').value = ST.cfg.tel || '';
+  $('cFaz').value = ST.cfg.faz || ''; $('cOcup').value = ST.cfg.ocup; $('cDesc').value = ST.cfg.desc; $('cFolga').value = folga(); $('cHora').value = z2(Math.floor(horaMud())) + ':' + z2(Math.round(horaMud() % 1 * 60)); $('cTel').value = ST.cfg.tel || '';
   // conta do rodízio
   const n = ST.pastos.length, o = +ST.cfg.ocup, d = +ST.cfg.desc;
   $('cConta').innerHTML = regioes().map(r => {
@@ -2462,6 +2515,7 @@ function renderConfig() {
 $('cFaz').onchange = () => { ST.cfg.faz = $('cFaz').value.trim(); mudou(); };
 $('cOcup').onchange = () => { const v = +$('cOcup').value.replace?.(',', '.') || +$('cOcup').value; if (v > 0) ST.cfg.ocup = v; mudou(); };
 $('cHora').onchange = () => { const [h, m] = $('cHora').value.split(':').map(Number); if (isFinite(h)) ST.cfg.hora = h + (m || 0) / 60; mudou(); };
+$('cFolga').onchange = () => { const v = +$('cFolga').value; if (v >= 0) ST.cfg.folga = v; mudou(); };
 $('cDesc').onchange = () => { const v = +$('cDesc').value; if (v > 0) ST.cfg.desc = v; mudou(); };
 $('cTel').onchange = () => { ST.cfg.tel = $('cTel').value.replace(/\D/g, ''); mudou(); };
 $('bAddP').onclick = () => {
@@ -3024,7 +3078,7 @@ function ser(col, o, i) {
   if (col === 'lotes') return { nome: o.nome || '', cab: o.cab ?? null, cor: o.cor || '#B4532E', reg: o.reg || '' };
   return { lote: o.lote, pasto: o.pasto, ent: o.ent, sai: o.sai ?? null, est: !!o.est };
 }
-const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.hora, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '' });
+const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.hora, folga: +ST.cfg.folga, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '' });
 const arrDe = col => col === 'pastos' ? ST.pastos : col === 'lotes' ? ST.lotes : ST.ev;
 
 // envia para a nuvem só o que mudou desde o último estado conhecido
