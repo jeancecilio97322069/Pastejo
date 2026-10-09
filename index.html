@@ -911,7 +911,46 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 #bNum.on{background:var(--feno);border-color:#B88A1C;color:var(--txt)}
 .ppop label{display:flex;flex-direction:column;font-size:12px;color:var(--mut);font-weight:600;margin-top:6px;gap:3px}
 .ppop input{width:100%;padding:5px 6px;font-size:13px}
+/* clima no cabeçalho */
+.quebra{display:none}
+.hclima{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:16px;padding:2px 10px 2px 4px;font-size:13px;display:inline-flex;align-items:center;gap:5px;align-self:center}
+.hclima:hover{background:rgba(255,255,255,.18)}
+.hclima small{color:#C9D6CC;font-size:11.5px}
+.climapop{position:fixed;z-index:1600;right:max(12px,calc((100vw - 1180px)/2));top:var(--htop,90px);width:min(340px,calc(100vw - 24px));background:var(--papel);color:var(--txt);border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.35);max-height:70vh;overflow:auto;font-size:13px}
+.climapop[hidden]{display:none}
+/* avisos em cards */
+.avgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:start}
+.avcard{background:var(--papel);border:1px solid var(--linha);border-radius:12px;overflow:hidden}
+.avcab{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--linha);font-weight:650;font-size:15px}
+.avcab .ico{flex:none}
+.avcab .n{margin-left:auto;font-size:12px;font-weight:700;border-radius:10px;padding:1px 8px;background:#E3EADC;color:var(--mata)}
+.avcab .n.alto{background:var(--alerta);color:#fff}
+.avcard.seq .avcab{background:#FBF4E4}.avcard.rec .avcab{background:#F6F1E4}.avcard.ok .avcab{background:#E8F3EA}
+.avitem{display:flex;gap:10px;align-items:flex-start;padding:9px 14px;border-bottom:1px dotted var(--linha);font-size:13.5px}
+.avitem:last-child{border-bottom:none}
+.avitem .dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:6px}
+.avitem .tx{flex:1;min-width:0}
+.avitem .tx b{font-weight:650}
+.avitem .tx .t{color:var(--mut);font-size:12.5px}
+.avitem .tx .barra{height:6px;margin-top:5px}
+.avitem.alto{background:#FBE9E6}.avitem.medio{background:#FDF6E8}
+.avitem button{flex:none}
+.avvazio{padding:12px 14px;color:var(--mut);font-size:13px}
+.avreg{font-size:11px;font-weight:700;color:var(--mata);text-transform:uppercase;letter-spacing:.3px;padding:8px 14px 0}
+/* bloco de região na aba mapa */
+.regcard{background:var(--papel);border:1px solid var(--linha);border-radius:12px;padding:12px;margin-bottom:14px}
+.regcard>.regtit{margin:0 0 10px}
+.regcard .grid{margin-bottom:10px}
+.regbody{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:12px;align-items:start}
+.reglotes{display:flex;flex-direction:column;gap:10px}
+.reglotes .card{margin:0}
+.regcard .lote .regtag{display:none}
+@media (max-width:760px){.regbody{grid-template-columns:1fr}}
+.regcard .lote{background:#fff;transition:box-shadow .3s}
+.lote.destaque{box-shadow:0 0 0 3px var(--feno)}
 @media (max-width:600px){
+  .quebra{display:block;flex-basis:100%;height:0}
+  .top .relogio{width:auto!important}
   main{padding:12px 10px 40px}
   .grid{grid-template-columns:1fr}
   .top .relogio{width:100%;margin:0}
@@ -924,7 +963,9 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
   <div class="top">
     <h1>Pastejo rotacionado</h1><span class="faz" id="hFaz"></span>
     <span class="nvst" id="nvSt" hidden></span>
+    <span class="quebra"></span>
     <span class="relogio" id="relogio"></span>
+    <button class="hclima" id="hClima" hidden aria-label="Ver previsão do tempo"></button>
     <label id="fRegBox" class="freg" hidden>Região <select id="fReg"></select></label>
   </div>
   <nav class="tabs" id="tabs">
@@ -941,14 +982,8 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 
   <!-- PAINEL -->
   <section class="tab on" id="t-painel">
-    <div id="pnClima"></div>
     <div id="boasVindas"></div>
-    <div id="pnAlertas"></div>
-    <h2 id="hLotes">Lotes</h2>
-    <div class="grid" id="pnLotes"></div>
-    <h2 id="hPastos">Pastos na sequência <span class="sub" id="pnSeqInfo"></span></h2>
-    <div id="pnTiles"></div>
-    <div class="leg"><span><i style="background:var(--terra)"></i>ocupado</span><span><i class="grad"></i>em recuperação</span><span><i style="background:var(--ok)"></i>pronto</span></div>
+    <div id="pnAvisos" class="avgrid"></div>
   </section>
 
   <!-- MAPA -->
@@ -965,7 +1000,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
     <div class="leg"><span><i style="background:var(--terra)"></i>ocupado (cor do lote)</span><span><i class="grad"></i>em recuperação (fica mais verde conforme recupera)</span><span><i style="background:var(--ok)"></i>pronto</span>
       <button class="peq" id="bBase" style="margin-left:auto">Fundo: Google</button></div>
     <div class="hint" id="mapSemGeo"></div>
-    <h2 style="margin-top:16px">Situação dos pastos <span class="sub">toque num pasto para achar no mapa</span></h2>
+    <h2 style="margin-top:16px">Lotes e pastos <span class="sub">registre as mudanças aqui · toque num pasto para achar no mapa</span></h2>
     <div id="mapResumo"></div>
   </section>
 
@@ -1086,6 +1121,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
   </section>
 </main>
 <div class="toast" id="toast"></div>
+<div id="climaPop" class="climapop" hidden></div>
 <div id="nvOv" class="nvov" hidden>
   <div class="nvcard">
     <div class="nvtop"><img src="icon-192.png" alt="" onerror="this.remove()"><h2>Pastejo rotacionado</h2></div>
@@ -2032,6 +2068,7 @@ function desfazer() {
 // ---------- render: painel ----------
 function render() {
   $('hFaz').textContent = ST.cfg.faz || '';
+  setTimeout(atualizarClima, 0);
   renderEquipe();
   const rs = regioes(), selR = $('fReg');
   if (filtro() !== '*' && !rs.includes(filtro())) ST.cfg.filtro = '*';
@@ -2047,34 +2084,76 @@ function render() {
   if (abaAtual === 'linha') renderGantt();
 }
 function renderPainel(al) {
-  setTimeout(atualizarClima, 0);
   const semP = !ST.pastos.length, semL = !ST.lotes.length;
   $('boasVindas').innerHTML = (semP || semL) ? `<div class="card vazio"><b>Vamos começar</b>
     <ol class="passos">
       <li>${semP ? '<b>' : ''}Importe os pastos${semP ? '</b>' : ' ✓'} (o KMZ ou SHP que o divisor de praças exporta) ou cadastre à mão, em <i>Pastos e lotes</i>.</li>
       <li>${semL ? '<b>' : ''}Cadastre o lote de gado${semL ? '</b>' : ' ✓'} e confira os dias de ocupação e de recuperação.</li>
-      <li>Aqui no painel, coloque o lote no primeiro pasto. A partir daí o painel avisa a hora de mudar e sugere o próximo pasto.</li>
+      <li>Na aba <i>Mapa</i>, coloque o lote no primeiro pasto. A partir daí o painel avisa a hora de mudar e sugere o próximo pasto.</li>
     </ol><div class="acoes" style="justify-content:center;margin-top:14px"><button class="pri" data-ir="config">Ir para Pastos e lotes</button></div></div>` : '';
   $('boasVindas').querySelectorAll('[data-ir]').forEach(b => b.onclick = () => abrirAba(b.dataset.ir));
 
-  const urg = al.filter(a => a.nv !== 'info'), info = al.filter(a => a.nv === 'info');
-  $('pnAlertas').innerHTML = al.length ? `<h2 style="margin-top:4px">Avisos</h2><div class="alertas">` +
-    urg.concat(info).map(a => `<div class="al ${a.nv}"><span class="ic"></span><div><b>${esc(a.tit)}</b><div class="t">${esc(a.txt)}</div></div></div>`).join('') + '</div>' : '';
-
-  $('hLotes').hidden = semL;
-  const lotesV = ST.lotes.filter(l => { const o = aberto(l.id); return !o || visivel(P(o.pasto)); });
-  $('pnLotes').innerHTML = lotesV.map(cardLote).join('') || '<div class="hint">Nenhum lote nesta região.</div>';
-  lotesV.forEach(ligarCardLote);
-
-  $('hPastos').hidden = semP;
-  const pv = ST.pastos.filter(visivel);
-  $('pnSeqInfo').textContent = pv.length ? `${pv.length} pastos · ${num(pv.reduce((s, p) => s + (+p.ha || 0), 0))} ha` : '';
-  $('pnTiles').innerHTML = tilesHtml();
+  renderAvisos();
 }
-function tilesHtml() {
-  return regioes().filter(r => filtro() === '*' || r === filtro()).map(r => {
+function renderAvisos() {
+  const t = now(), box = $('pnAvisos');
+  if (!ST.pastos.length) { box.innerHTML = ''; return; }
+  // 1) sequência de manejo: cada lote no rodízio, por ordem de prazo
+  const seq = ST.lotes.map(l => ({ l, o: aberto(l.id) })).filter(x => x.o && P(x.o.pasto) && visivel(P(x.o.pasto)))
+    .map(x => { const p = P(x.o.pasto); return { ...x, p, prazo: x.o.ent + par(p, 'ocup') * DAY, s: sugestao(x.l) }; })
+    .sort((a, b) => a.prazo - b.prazo);
+  const nVenc = seq.filter(x => t >= x.prazo).length;
+  const itSeq = seq.map(x => {
+    const atras = t >= x.prazo, perto = !atras && x.prazo - t <= DAY, nv = atras ? 'alto' : perto ? 'medio' : '';
+    const dest = x.s && x.s.p ? x.s.p.nome : 'nenhum pasto livre';
+    const quando = atras ? `<b style="color:var(--alerta)">prazo vencido há ${fDur(t - x.prazo)}</b>` : `mudar em ${fDT(x.prazo)} · faltam ${fDur(x.prazo - t)}`;
+    const pct = Math.min(1, (t - x.o.ent) / (x.prazo - x.o.ent));
+    return `<div class="avitem ${nv}"><span class="dot" style="background:${x.l.cor}"></span><div class="tx">
+      <b>${esc(x.l.nome)}</b>${regDe(x.p) ? ' <span class="regtag">' + esc(regDe(x.p)) + '</span>' : ''}
+      <div>No <b>${esc(x.p.nome)}</b> → próximo <b>${esc(dest)}</b></div><div class="t">${quando}</div>
+      <div class="barra"><i style="width:${pct * 100}%;background:${atras ? 'var(--alerta)' : x.l.cor}"></i></div></div>
+      <button class="peq${atras ? ' ok' : ''}" data-irl="${x.l.id}">${atras ? 'Registrar' : 'Abrir'}</button></div>`;
+  }).join('');
+  // 2) em recuperação e 3) recuperados, agrupados por região
+  const rs = regioes().filter(r => filtro() === '*' || r === filtro());
+  const porReg = (fn, vazio) => {
+    const h = rs.map(r => { const it = seqReg(r).map(p => ({ p, s: situacao(p, ST.ev, t) })).filter(fn.f).sort(fn.o).map(fn.h).join(''); return it ? (rs.length > 1 ? `<div class="avreg">${esc(regNome(r))}</div>` : '') + it : ''; }).join('');
+    return h || `<div class="avvazio">${vazio}</div>`;
+  };
+  const nRec = ST.pastos.filter(p => visivel(p) && situacao(p, ST.ev, t).st === 'descanso').length;
+  const nOk = ST.pastos.filter(p => visivel(p) && situacao(p, ST.ev, t).st === 'pronto').length;
+  const itRec = porReg({ f: x => x.s.st === 'descanso', o: (a, b) => a.s.fim - b.s.fim,
+    h: x => `<div class="avitem"><span class="dot" style="background:${corDescanso(x.s.pct)}"></span><div class="tx"><b>${esc(x.p.nome)}</b> · ${Math.round(x.s.pct * 100)}%
+      <div class="t">faltam ${fDur(x.s.fim - t)} · pronto em ${fDT(x.s.fim)}</div><div class="barra"><i style="width:${x.s.pct * 100}%;background:${corDescanso(x.s.pct)}"></i></div></div></div>` }, 'Nenhum pasto em recuperação.');
+  const itOk = porReg({ f: x => x.s.st === 'pronto', o: (a, b) => (b.s.desde || 0) - (a.s.desde || 0),
+    h: x => { const novo = x.s.desde && t - x.s.desde < 2 * DAY; return `<div class="avitem"><span class="dot" style="background:var(--ok)"></span><div class="tx"><b>${esc(x.p.nome)}</b>${novo ? ' <span class="tag-est" style="background:#E8F3EA;color:var(--ok);border-color:#B6D8BE">novo</span>' : ''}
+      <div class="t">${x.s.desde ? 'pronto desde ' + fDT(x.s.desde) : x.s.last ? 'descansando há ' + fDur(t - x.s.last.sai) : 'ainda sem uso'}</div></div></div>`; } }, 'Nenhum pasto pronto agora.');
+  box.innerHTML = `
+    <div class="avcard seq"><div class="avcab">${icone('boi', '#B4532E', false, 26)}Sequência de manejo<span class="n${nVenc ? ' alto' : ''}">${nVenc ? nVenc + ' vencida' + (nVenc > 1 ? 's' : '') : seq.length}</span></div>${itSeq || '<div class="avvazio">Nenhum lote no rodízio. Coloque um lote num pasto na aba Mapa.</div>'}</div>
+    <div class="avcard rec"><div class="avcab">${icone('recuperando', '#C98B3A', false, 26)}Pastos em recuperação<span class="n">${nRec}</span></div>${itRec}</div>
+    <div class="avcard ok"><div class="avcab">${icone('pronto', '#5CC46A', false, 26)}Recuperados<span class="n">${nOk}</span></div>${itOk}</div>`;
+  box.querySelectorAll('[data-irl]').forEach(b => b.onclick = () => irParaLote(b.dataset.irl));
+}
+function irParaLote(id) {
+  abrirAba('mapa');
+  setTimeout(() => { const c = document.querySelector(`#mapResumo .lote[data-l="${id}"]`); if (c) { c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.classList.add('destaque'); setTimeout(() => c.classList.remove('destaque'), 1600); } }, 250);
+}
+function blocosRegiao() {
+  const rs = regioes().filter(r => filtro() === '*' || r === filtro());
+  let h = rs.map(r => {
     const ps = seqReg(r), ls = lotesDaRegiao(r), cab = ls.reduce((a, l) => a + (+l.cab || 0), 0);
-    return `<div class="regtit">${esc(regNome(r))} <span>${ps.length} pastos · ${num(ps.reduce((s, p) => s + (+p.ha || 0), 0))} ha${cab ? ' · ' + cab + ' cab.' : ''}</span></div><div class="tiles">` + ps.map((p, i) => {
+    return `<div class="regcard"><div class="regtit">${esc(regNome(r))} <span>${ps.length} pastos · ${num(ps.reduce((s, p) => s + (+p.ha || 0), 0))} ha${cab ? ' · ' + cab + ' cab.' : ''}</span></div>` +
+      (ls.length ? `<div class="regbody"><div class="reglotes">${ls.map(cardLote).join('')}</div><div>${tilesReg(r)}</div></div>` : tilesReg(r)) + '</div>';
+  }).join('');
+  const soltos = ST.lotes.filter(l => !aberto(l.id) && !regioes().includes(regLote(l)));
+  if (soltos.length && filtro() === '*') h += `<div class="regcard"><div class="regtit">Lotes sem região</div><div class="grid">${soltos.map(cardLote).join('')}</div></div>`;
+  return h;
+}
+function lotesNoMapa() { const rs = regioes(); return ST.lotes.filter(l => document.querySelector(`#mapResumo .lote[data-l="${l.id}"]`)); }
+function tilesHtml() { return regioes().filter(r => filtro() === '*' || r === filtro()).map(tilesReg).join(''); }
+function tilesReg(r) {
+  { const ps = seqReg(r);
+    return `<div class="tiles">` + ps.map((p, i) => {
     const s = situacao(p), l = s.lote ? Lt(s.lote) : null, lc = l ? l.cor : '';
     let st = '', bar = '';
     if (s.st === 'ocupado') {
@@ -2091,7 +2170,7 @@ function tilesHtml() {
     const ic = s.st === 'ocupado' ? icone('boi', lc || '#B4532E', now() > s.prazo, 30) : s.st === 'descanso' ? icone('recuperando', corDescanso(s.pct), false, 30) : icone('pronto', '#5CC46A', false, 30);
     return `<div class="tile ${s.st}" data-p="${p.id}" style="--lc:${lc}"><span class="tico">${ic}</span><span class="seq">${i + 1}º</span><div class="nm">${esc(p.nome)}</div><div class="ha">${p.ha ? num(p.ha) + ' ha · ' : ''}${par(p, 'ocup')}d / ${par(p, 'desc')}d</div><div class="st">${st}</div>${bar}</div>`;
   }).join('') + '</div>';
-  }).join('');
+  }
 }
 function opcoesDestino(l, sug) {
   const o = aberto(l.id), rAt = o ? regDe(P(o.pasto)) : (sug && sug.p ? regDe(sug.p) : null);
@@ -2532,9 +2611,7 @@ function renderMapa() {
   if (!map) {
     map = L.map('map', { maxZoom: 22 }).setView([-15.8, -50], 4);
     setBase(0); gP = L.layerGroup().addTo(map);
-    ctlClima = L.control({ position: 'topright' });
-    ctlClima.onAdd = () => { const d = L.DomUtil.create('div', 'clima-ctl'); L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d); return d; };
-    ctlClima.addTo(map);
+
     $('bBase').onclick = () => setBase((base + 1) % BASES.length);
   }
   map.invalidateSize(false);
@@ -2567,8 +2644,8 @@ function renderMapa() {
     L.marker(lp, { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="mlbl">${ic}<span class="mn">${esc(p.nome)}</span></div>` }) }).addTo(gP);
   });
   if (numerando) poly0();
-  atualizarClima();
-  $('mapResumo').innerHTML = tilesHtml();
+  $('mapResumo').innerHTML = blocosRegiao();
+  lotesNoMapa().forEach(ligarCardLote);
   $('mapResumo').querySelectorAll('.tile[data-p]').forEach(el => el.onclick = () => {
     const pl = polys[el.dataset.p]; if (!pl) return;
     map.fitBounds(pl.getBounds(), { padding: [60, 60], maxZoom: 17 }); pl.openTooltip(pl.getBounds().getCenter());
@@ -2697,28 +2774,33 @@ function climaRegiaoHtml(r, compacto) {
   return linha + `<div class="cl-prox">${dias}</div>`;
 }
 function regioesClima() { return regioes().filter(r => (filtro() === '*' || r === filtro())); }
-let climaAberto = false, ctlClima = null;
+
 function desenharClima() {
-  const rs = regioesClima();
-  const t = rs.map(r => CLIMA[r] && CLIMA[r].t).filter(Boolean), hora = t.length ? new Date(Math.min(...t)) : null;
-  const rod = `<div class="cl-rod">${hora ? 'atualizado ' + z2(hora.getHours()) + ':' + z2(hora.getMinutes()) : ''} · Open-Meteo<button class="cl-at" title="Atualizar">↻</button></div>`;
-  // painel
-  const pc = $('pnClima');
-  if (pc) { pc.innerHTML = rs.length ? `<div class="clima-faixa">${rs.map(r => `<div class="clima-item">${climaRegiaoHtml(r, true)}</div>`).join('')}</div>` : ''; }
-  // mapa
-  if (ctlClima) {
-    const el = ctlClima.getContainer();
-    if (!rs.length) { el.innerHTML = ''; return; }
-    el.innerHTML = climaAberto
-      ? `<div class="cl-cab"><b>Clima</b><button class="cl-x" title="Recolher">–</button></div>${rs.map(r => `<div class="cl-reg">${climaRegiaoHtml(r, false)}</div>`).join('')}${rod}`
-      : rs.every(r => !(CLIMA[r] || {}).dados && (CLIMA[r] || {}).erro) ? `<button class="cl-chip" title="Tentar de novo">${svgClima('nuvem', 20)}<small>clima ${esc(CLIMA[rs[0]].erro)}</small></button>`
-      : `<button class="cl-chip" title="Ver clima">${rs.slice(0, 3).map(r => { const d = (CLIMA[r] || {}).dados; if (!d) return '<small>…</small>'; const i = climaInfo(d.current.weather_code, d.current.is_day); return svgClima(i.ic, 22) + `<b>${Math.round(d.current.temperature_2m)}°</b>${rs.length > 1 ? `<small>${esc(regNome(r).slice(0, 10))}</small>` : ` <small>${Math.round(d.daily.temperature_2m_min[0])}°/${Math.round(d.daily.temperature_2m_max[0])}° · ${Math.round(d.current.wind_speed_10m)} km/h · ${d.current.relative_humidity_2m}%</small>`}`; }).join('<span class="sep"></span>')}</button>`;
-    const ch = el.querySelector('.cl-chip'), x = el.querySelector('.cl-x'), at = el.querySelector('.cl-at');
-    if (ch) ch.onclick = () => { if (rs.every(r => !(CLIMA[r] || {}).dados)) return rs.forEach(r => carregarClima(r, true)); climaAberto = true; desenharClima(); };
-    if (x) x.onclick = () => { climaAberto = false; desenharClima(); };
-    if (at) at.onclick = () => rs.forEach(r => carregarClima(r, true));
+  const rs = regioesClima(), btn = $('hClima'), pop = $('climaPop');
+  if (!rs.length) { btn.hidden = true; pop.hidden = true; return; }
+  btn.hidden = false;
+  const comDados = rs.filter(r => (CLIMA[r] || {}).dados);
+  if (!comDados.length) {
+    const erro = rs.map(r => (CLIMA[r] || {}).erro).find(Boolean);
+    btn.innerHTML = `${svgClima('nuvem', 22)}<small>${erro ? 'clima ' + esc(erro) : '…'}</small>`;
+  } else {
+    const d = CLIMA[comDados[0]].dados, i = climaInfo(d.current.weather_code, d.current.is_day);
+    btn.innerHTML = `${svgClima(i.ic, 24)}<b>${Math.round(d.current.temperature_2m)}°</b><small>${Math.round(d.daily.temperature_2m_min[0])}°/${Math.round(d.daily.temperature_2m_max[0])}°</small>`;
   }
+  const t = rs.map(r => CLIMA[r] && CLIMA[r].t).filter(Boolean), hora = t.length ? new Date(Math.min(...t)) : null;
+  pop.innerHTML = `<div class="cl-cab"><b>Previsão do tempo</b><button class="cl-x" title="Fechar">×</button></div>${rs.map(r => `<div class="cl-reg">${climaRegiaoHtml(r, false)}</div>`).join('')}
+    <div class="cl-rod">${hora ? 'atualizado ' + z2(hora.getHours()) + ':' + z2(hora.getMinutes()) : ''} · Open-Meteo<button class="cl-at" title="Atualizar">↻</button></div>`;
+  pop.querySelector('.cl-x').onclick = () => { pop.hidden = true; };
+  pop.querySelector('.cl-at').onclick = () => rs.forEach(r => carregarClima(r, true));
 }
+$('hClima').onclick = e => {
+  e.stopPropagation();
+  const rs = regioesClima(), pop = $('climaPop');
+  if (rs.every(r => !(CLIMA[r] || {}).dados)) return rs.forEach(r => carregarClima(r, true));
+  pop.style.setProperty('--htop', (document.querySelector('header').getBoundingClientRect().bottom + 6) + 'px');
+  pop.hidden = !pop.hidden;
+};
+document.addEventListener('click', e => { const pop = $('climaPop'); if (!pop.hidden && !pop.contains(e.target) && e.target !== $('hClima')) pop.hidden = true; });
 function atualizarClima() { regioesClima().forEach(r => carregarClima(r)); desenharClima(); }
 
 // ---------- linha do tempo (SVG) ----------
