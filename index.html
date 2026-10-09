@@ -939,6 +939,20 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 .avitem .mudar{margin-top:5px;font-size:15px;font-weight:700;color:var(--mata)}
 .avitem .mudar.venc{color:var(--alerta)}
 .avitem details{margin-top:8px}
+.sent{display:inline-flex;align-items:center;gap:4px;font-weight:500;font-size:12.5px;color:var(--mut)}
+.sent button.on{background:var(--mata);color:#fff}
+.plgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;align-items:start}
+.pl{margin:0}
+.pltit{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.pltit b{font-size:15px;color:var(--mata)}
+.pltit span{font-size:12.5px;color:var(--mut);display:inline-flex;align-items:center;gap:5px}
+.pltit .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.pl input[type=date]{font-size:14px;padding:5px 6px;min-width:130px}
+.pl td.prev{white-space:nowrap;font-weight:600;color:var(--mata)}
+.pl tr.aqui td{background:#FBEFEC}
+.pl td.longo{color:var(--alerta);font-weight:700}
+.tag-aqui{white-space:nowrap;font-size:10.5px;background:#C0392B;color:#fff;border-radius:8px;padding:0 6px}
+@media (max-width:600px){.plgrid{grid-template-columns:1fr}}
 .avitem .mudar.aval{color:#9A6408}
 .passar{margin-top:10px;display:flex;flex-direction:column;gap:6px}
 .pdest{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:var(--mut)}
@@ -1000,6 +1014,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
     <button data-t="mapa">Mapa</button>
     <button data-t="linha">Linha do tempo</button>
     <button data-t="config">Pastos e lotes</button>
+    <button data-t="plan" class="so-admin">Planilha</button>
     <button data-t="hist">Histórico</button>
   </nav>
 </header>
@@ -1126,6 +1141,14 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
   </section>
 
   <!-- HISTÓRICO -->
+  <section class="tab" id="t-plan">
+    <div class="row" style="margin:0 0 10px;align-items:center;justify-content:space-between">
+      <div class="hint" style="margin:0;max-width:720px">Cada linha é o último pastejo de cada pasto, na ordem em que a boiada gira. Digite a <b>entrada</b> e, quando o gado sair, a <b>saída</b>. A saída prevista é calculada sozinha (dias de pastejo, às 07:00). Colocar uma entrada mais nova que a do pasto atual passa a boiada para esse pasto.</div>
+      <button id="plCsv">Baixar planilha (Excel)</button>
+    </div>
+    <div id="plBox" class="plgrid"></div>
+  </section>
+
   <section class="tab" id="t-hist">
     <h2>Resumo por pasto</h2>
     <div class="card tw"><table>
@@ -1794,7 +1817,7 @@ if (qs.get('agora')) { const t = new Date(qs.get('agora')).getTime(); if (isFini
 const now = () => Date.now() + offset;
 
 // ---------- estado ----------
-const novoEstado = () => ({ v: 1, cfg: { ocup: 2, desc: 7, hora: 7, folga: 1, tel: '', faz: '' }, pastos: [], lotes: [], ev: [], notif: {} });
+const novoEstado = () => ({ v: 1, cfg: { ocup: 9, desc: 7, hora: 7, folga: 1, mig: 0, tel: '', faz: '' }, pastos: [], lotes: [], ev: [], notif: {} });
 let ST = novoEstado();
 let ultimo = null;           // { antes: ev[], recibo: {...} } para desfazer
 const recibos = {};          // por lote: resumo da última mudança confirmada nesta sessão
@@ -1873,9 +1896,23 @@ function conflito(c, ignora) {
 // ordem natural por nome (1, 2, 3 … 10)
 const cmpNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { numeric: true, sensitivity: 'base' });
 const regOrdenada = r => { const q = seqReg(r); return q.every((p, i) => i === 0 || cmpNome(q[i - 1], p) <= 0); };
-function ordenarRegiao(r) {
-  const q = seqReg(r).sort(cmpNome);
+const regDecrescente = r => { const q = seqReg(r); return q.length > 1 && q.every((p, i) => i === 0 || cmpNome(q[i - 1], p) >= 0); };
+function ordenarRegiao(r, desc) {
+  const q = seqReg(r).sort(cmpNome); if (desc) q.reverse();
   ST.pastos.map((x, i) => regDe(x) === r ? i : -1).filter(i => i >= 0).forEach((ix, k) => { ST.pastos[ix] = q[k]; });
+}
+// Ajuste combinado com a fazenda: 9 dias de pastejo e sentido de giro de cada boiada
+// (Paudalho A: 1→4 · Paudalho B: 4→1 · Cana: 4→1). Roda uma vez só.
+function migrar() {
+  if (+ST.cfg.mig >= 2 || !ST.pastos.length) return false;
+  ST.cfg.ocup = 9; ST.pastos.forEach(p => { p.ocup = null; });
+  regioes().forEach(r => {
+    const n = r.toUpperCase().replace(/\s+/g, '_');
+    if (n === 'PAUDALHO' || n === 'PAUDALHO_A') ordenarRegiao(r, false);
+    else if (n === 'PAUDALHO_B' || n === 'CANA') ordenarRegiao(r, true);
+  });
+  ST.cfg.mig = 2;
+  return true;
 }
 // histórico anterior estimado: o lote veio dos pastos anteriores da sequência, ficando os dias de ocupação em cada um
 function completarAnterior(r) {
@@ -2123,6 +2160,7 @@ function render() {
   renderHist();
   if (abaAtual === 'mapa') renderMapa();
   if (abaAtual === 'linha') renderGantt();
+  if (abaAtual === 'plan') renderPlanilha();
 }
 function renderPainel(al) {
   const semP = !ST.pastos.length, semL = !ST.lotes.length;
@@ -2384,7 +2422,7 @@ function renderConfig() {
     const chips = ls.map(l => `<span class="rlote"><span class="dot" style="background:${l.cor}"></span>${esc(l.nome)}
       <input type="number" class="rcab" data-lote="${l.id}" value="${l.cab ?? ''}" min="0" step="1" aria-label="Cabeças do ${esc(l.nome)}"> cab.</span>`).join('');
     const tot = ls.reduce((s, l) => s + (+l.cab || 0), 0);
-    const ord = regOrdenada(r) ? '' : `<button class="peq" data-ordr="${esc(r)}" title="A sequência desta região não está em ordem crescente de nome">Ordenar ${esc(seqReg(r).slice().sort(cmpNome)[0].nome)} → ${esc(seqReg(r).slice().sort(cmpNome).slice(-1)[0].nome)}</button>`;
+    const ord = seqReg(r).length > 1 ? `<span class="sent">Sentido <button class="peq${regOrdenada(r) ? ' on' : ''}" data-ordr="${esc(r)}" data-dir="asc">1 → ${esc(seqReg(r).slice().sort(cmpNome).slice(-1)[0].nome)}</button><button class="peq${regDecrescente(r) ? ' on' : ''}" data-ordr="${esc(r)}" data-dir="desc">${esc(seqReg(r).slice().sort(cmpNome).slice(-1)[0].nome)} → 1</button></span>` : '';
     const semHist = seqReg(r).filter(p => !ST.ev.some(e => e.pasto === p.id)).length;
     const comp = ls.some(l => aberto(l.id)) && semHist ? `<button class="peq" data-comp="${esc(r)}" title="Cria o histórico anterior estimado pela sequência">Completar histórico anterior</button>` : '';
     return `<tr class="treg"><td colspan="10"><div class="tregc"><span class="rn">${esc(regNome(r))}</span>${ord}${comp}
@@ -2408,7 +2446,7 @@ function renderConfig() {
       return sai + (ol ? `<div class="gsub"><span>Colocar lote</span><select data-g="lote" aria-label="Lote">${ol}</select><input type="datetime-local" data-g="novo" aria-label="Entrada do gado no ${esc(p.nome)}"></div>` : '');
     })()}</td>
     <td><button class="peq del" data-a="del">Excluir</button></td></tr>`).join('')).join('');
-  $('tbP').querySelectorAll('[data-ordr]').forEach(b => b.onclick = () => { ordenarRegiao(b.dataset.ordr); mudou(); toast('Sequência de ' + regNome(b.dataset.ordr) + ' em ordem crescente.'); });
+  $('tbP').querySelectorAll('[data-ordr]').forEach(b => b.onclick = () => { const d = b.dataset.dir === 'desc'; ordenarRegiao(b.dataset.ordr, d); mudou(); toast(`${regNome(b.dataset.ordr)}: o gado gira ${d ? 'do maior para o menor (4 → 1)' : 'do menor para o maior (1 → 4)'}.`); });
   $('tbP').querySelectorAll('[data-comp]').forEach(b => b.onclick = () => {
     const r = b.dataset.comp;
     if (!regOrdenada(r) && !confirm('A sequência desta região não está em ordem crescente. O histórico vai ser montado pela ordem atual da tabela. Continuar?')) return;
@@ -2948,12 +2986,85 @@ $('gRange').onchange = renderGantt;
 
 // ---------- abas ----------
 let abaAtual = 'painel';
+const toDate = t => { const d = new Date(t); return `${d.getFullYear()}-${z2(d.getMonth() + 1)}-${z2(d.getDate())}`; };
+const fromDate = v => { if (!v) return null; const [y, m, d] = v.split('-').map(Number); if (!y) return null; return naHora(new Date(y, m - 1, d, 12).getTime()); };
+function linhasPlanilha(r) {
+  return seqReg(r).map(p => {
+    const e = ST.ev.filter(x => x.pasto === p.id).sort((a, b) => b.ent - a.ent)[0] || null;
+    const prev = e ? prazoDe(e.ent, p) : null, dias = e ? ((e.sai ?? now()) - e.ent) / DAY : null;
+    return { p, e, prev, dias };
+  });
+}
+function renderPlanilha() {
+  const box = $('plBox'), rs = regioes().filter(r => filtro() === '*' || r === filtro());
+  if (!rs.length) { box.innerHTML = '<div class="vazio">Cadastre os pastos em “Pastos e lotes”.</div>'; return; }
+  box.innerHTML = rs.map(r => {
+    const ls = lotesDaRegiao(r), l = ls[0], q = seqReg(r);
+    const sent = regDecrescente(r) ? `${esc(q[0].nome)} → ${esc(q[q.length - 1].nome)}` : regOrdenada(r) ? `${esc(q[0].nome)} → ${esc(q[q.length - 1].nome)}` : 'ordem da tabela';
+    return `<div class="card pl"><div class="pltit"><b>${esc(regNome(r))}</b><span>${l ? `<span class="dot" style="background:${l.cor}"></span>${esc(l.nome)}${l.cab ? ' · ' + l.cab + ' cab.' : ''}` : 'sem lote'} · gira ${sent}</span></div>
+      <div class="tw"><table><thead><tr><th>Pasto</th><th>Entrada</th><th>Saída prevista</th><th>Saída</th><th style="text-align:right">Dias</th><th></th></tr></thead><tbody>
+      ${linhasPlanilha(r).map(({ p, e, prev, dias }) => {
+        const aqui = e && e.sai == null, longo = dias != null && dias > par(p, 'ocup') + folga() + .01;
+        return `<tr data-p="${p.id}" data-e="${e ? e.id : ''}" class="${aqui ? 'aqui' : ''}">
+          <td><b>${esc(p.nome)}</b>${aqui ? ' <span class="tag-aqui">gado aqui</span>' : ''}${e && e.est ? ' <span class="tag-est">estimado</span>' : ''}</td>
+          <td><input type="date" data-c="ent" value="${e ? toDate(e.ent) : ''}" aria-label="Entrada no ${esc(p.nome)}"></td>
+          <td class="prev">${prev ? `${SEM[new Date(prev).getDay()]} ${fD(prev)}` : '—'}</td>
+          <td><input type="date" data-c="sai" value="${e && e.sai != null ? toDate(e.sai) : ''}" ${e ? '' : 'disabled'} aria-label="Saída do ${esc(p.nome)}"></td>
+          <td class="n${longo ? ' longo' : ''}">${dias != null ? Math.round(dias) : ''}</td>
+          <td>${e ? '<button class="xg" data-x title="Apagar este pastejo">×</button>' : ''}</td></tr>`;
+      }).join('')}</tbody></table></div></div>`;
+  }).join('');
+  box.querySelectorAll('tr[data-p]').forEach(tr => {
+    const p = P(tr.dataset.p), e = ST.ev.find(x => x.id === tr.dataset.e), volta = () => renderPlanilha();
+    tr.querySelector('[data-c="ent"]').onchange = ev => {
+      const v = fromDate(ev.target.value); if (v == null) return volta();
+      if (v > now()) { toast('A entrada não pode ser no futuro.'); return volta(); }
+      if (e) { // corrige a entrada
+        if (e.sai != null && e.sai <= v) { toast('A entrada precisa ser antes da saída.'); return volta(); }
+        const cf = conflito({ lote: e.lote, pasto: p.id, ent: v, sai: e.sai }, e.id); if (cf) { toast(cf, 6000); return volta(); }
+        e.ent = v; delete e.est; return mudou();
+      }
+      const l = lotesDaRegiao(regDe(p))[0];
+      if (!l) { toast('Crie o lote desta região em “Pastos e lotes”.'); return volta(); }
+      const o = aberto(l.id);
+      if (!o || o.ent < v) { // o gado está aqui a partir dessa data (fecha o pasto anterior)
+        const cf = conflito({ lote: l.id, pasto: p.id, ent: v, sai: null }, o && o.id); if (cf) { toast(cf, 6000); return volta(); }
+        if (o) o.sai = v;
+        ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent: v, sai: null }); l.reg = regDe(p);
+        mudou(); return toast(`${l.nome} no ${p.nome} desde ${fD(v)}.`);
+      }
+      // pastejo antigo: saída prevista como saída (ajuste depois se precisar)
+      const sai = Math.min(prazoDe(v, p), o.ent);
+      const cf = conflito({ lote: l.id, pasto: p.id, ent: v, sai }, null); if (cf) { toast(cf, 6000); return volta(); }
+      ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent: v, sai }); mudou();
+    };
+    tr.querySelector('[data-c="sai"]').onchange = ev => {
+      if (!e) return;
+      const v = ev.target.value ? fromDate(ev.target.value) : null;
+      if (v != null && v > now()) { toast('A saída não pode ser no futuro. Use “Passar o gado” no dia.'); return volta(); }
+      if (v != null && v <= e.ent) { toast('A saída precisa ser depois da entrada.'); return volta(); }
+      const cf = conflito({ lote: e.lote, pasto: p.id, ent: e.ent, sai: v }, e.id); if (cf) { toast(cf, 6000); return volta(); }
+      e.sai = v; delete e.est; mudou();
+    };
+    const x = tr.querySelector('[data-x]');
+    if (x) x.onclick = () => { if (confirm(`Apagar o pastejo do ${p.nome} (entrada ${fD(e.ent)})?`)) { ST.ev = ST.ev.filter(y => y !== e); mudou(); } };
+  });
+}
+$('plCsv').onclick = () => {
+  const L = ['Região;Pasto;Entrada;Saída prevista;Saída;Dias'];
+  regioes().forEach(r => linhasPlanilha(r).forEach(({ p, e, prev, dias }) => {
+    const f = t => t != null ? new Date(t).toLocaleDateString('pt-BR') : '';
+    L.push([regNome(r), p.nome, f(e && e.ent), f(prev), f(e && e.sai), dias != null ? Math.round(dias) : ''].join(';'));
+  }));
+  baixar(new Blob(['﻿' + L.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'planilha_pastejo.csv');
+};
 function abrirAba(t) {
   abaAtual = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === 't-' + t));
   if (t === 'mapa') requestAnimationFrame(renderMapa);
   if (t === 'linha') requestAnimationFrame(renderGantt);
+  if (t === 'plan') renderPlanilha();
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => abrirAba(b.dataset.t));
@@ -3078,7 +3189,7 @@ function ser(col, o, i) {
   if (col === 'lotes') return { nome: o.nome || '', cab: o.cab ?? null, cor: o.cor || '#B4532E', reg: o.reg || '' };
   return { lote: o.lote, pasto: o.pasto, ent: o.ent, sai: o.sai ?? null, est: !!o.est };
 }
-const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.hora, folga: +ST.cfg.folga, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '' });
+const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.hora, folga: +ST.cfg.folga, mig: +ST.cfg.mig || 0, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '' });
 const arrDe = col => col === 'pastos' ? ST.pastos : col === 'lotes' ? ST.lotes : ST.ev;
 
 // envia para a nuvem só o que mudou desde o último estado conhecido
@@ -3118,6 +3229,7 @@ function montar() {
   NV.last = { pastos: {}, lotes: {}, ev: {} };
   ['pastos', 'lotes', 'ev'].forEach(col => arrDe(col).forEach((o, i) => { NV.last[col][o.id] = JSON.stringify(ser(col, o, i)); }));
   NV.lastCfg = JSON.stringify(cfgNuvem());
+  if (NV.papel === 'admin' && migrar()) { sincronizar(); toast('Ajuste aplicado: 9 dias de pastejo e sentido de giro de cada boiada.', 6000); }
   fecharTelas(); aplicarPapel(); statusNuvem(); renderSeguro();
 }
 const editando = () => { const a = document.activeElement; return a && /INPUT|SELECT|TEXTAREA/.test(a.tagName) && a.closest('main,.leaflet-popup'); };
@@ -3291,7 +3403,7 @@ $('eqCopiar').onclick = () => { const i = $('eqLinkTxt'); i.select(); try { navi
     const raw = await DB.get('estado');
     modoLocal = (await DB.get('modo')) === 'local';
     const carregar = d => { ST = Object.assign(novoEstado(), d); ST.cfg = Object.assign(novoEstado().cfg, d.cfg || {}); ST.notif = ST.notif || {}; };
-    if (raw) carregar(JSON.parse(raw));
+    if (raw) { carregar(JSON.parse(raw)); if (migrar()) salvar(); }
     else { // primeira vez neste aparelho: usa os dados que vieram dentro do arquivo, se houver
       const sd = semente(); if (sd) { carregar(sd); salvar(); setTimeout(() => toast('Dados iniciais carregados do arquivo publicado.', 4000), 400); }
     }
