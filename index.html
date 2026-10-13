@@ -939,6 +939,14 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 .avitem .mudar{margin-top:5px;font-size:15px;font-weight:700;color:var(--mata)}
 .avitem .mudar.venc{color:var(--alerta)}
 .avitem details{margin-top:8px}
+.logbox{background:var(--papel);border:1px solid var(--linha);border-radius:12px;overflow:hidden}
+.logdia{background:#E3EADC;color:var(--mata);font-weight:700;font-size:12.5px;padding:6px 14px;text-transform:capitalize}
+.logit{display:flex;gap:12px;padding:9px 14px;border-bottom:1px dotted var(--linha);font-size:13.5px}
+.loghr{font-variant-numeric:tabular-nums;font-weight:700;color:var(--mut);flex:none;width:44px}
+.logquem{font-weight:650;color:var(--mata)}
+.logit ul{margin:3px 0 0;padding-left:18px}
+.logit li{margin:1px 0}
+#bNum.on{background:#C0392B!important;border-color:#C0392B;color:#fff}
 .sent{display:inline-flex;align-items:center;gap:4px;font-weight:500;font-size:12.5px;color:var(--mut)}
 .sent button.on{background:var(--mata);color:#fff}
 .plgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;align-items:start}
@@ -1016,6 +1024,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
     <button data-t="config">Pastos e lotes</button>
     <button data-t="plan" class="so-admin">Planilha</button>
     <button data-t="hist">Histórico</button>
+    <button data-t="log" class="so-admin">Alterações</button>
   </nav>
 </header>
 
@@ -1033,7 +1042,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
     <div class="row" style="margin:0 0 10px;align-items:center">
       <button id="bNum" class="so-admin">Numerar clicando</button>
       <span id="numBox" hidden style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <label class="f" style="flex-direction:row;align-items:center">Prefixo <input type="text" id="numPref" value="P" style="width:56px"></label>
+        <label class="f" style="flex-direction:row;align-items:center">Prefixo <input type="text" id="numPref" value="" placeholder="(nenhum)" style="width:80px"></label>
         <label class="f" style="flex-direction:row;align-items:center">Começar em <input type="number" id="numIni" value="1" min="1" style="width:64px"></label>
         <span class="hint" id="numInfo" style="margin:0"></span></span>
       <span class="hint so-admin" style="margin:0">Fora desse modo, clique num pasto para editar nome, região, posição e dias.</span>
@@ -1147,6 +1156,14 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
       <button id="plCsv">Baixar planilha (Excel)</button>
     </div>
     <div id="plBox" class="plgrid"></div>
+  </section>
+
+  <section class="tab" id="t-log">
+    <div class="row" style="margin:0 0 12px;align-items:center;justify-content:space-between">
+      <div class="hint" style="margin:0;max-width:680px">Tudo o que foi mudado no cadastro e nos pastejos: quem mudou, quando e o quê. Serve para achar alterações feitas sem querer.</div>
+      <input type="search" id="logBusca" placeholder="Buscar (pasto, lote, pessoa…)" style="min-width:240px">
+    </div>
+    <div id="logBox" class="logbox"></div>
   </section>
 
   <section class="tab" id="t-hist">
@@ -1843,7 +1860,121 @@ async function salvar() {
   if (!podeSalvar || NV.on) return;
   try { await DB.set('estado', JSON.stringify(ST)); } catch (e) { podeSalvar = false; $('semArmaz').hidden = false; }
 }
-function mudou() { if (NV.on) sincronizar(); else salvar(); render(); }
+function mudou(extra) { if (NV.on) sincronizar(extra); else { registrarLocal(extra); salvar(); } render(); }
+// ---------- registro de alterações (quem mudou o quê) ----------
+const LOC = { last: null, cfg: null };
+const LOGS = { lista: [], unsub: null };
+const CFG_LOG = { ocup: 'Dias de pastejo', desc: 'Dias de recuperação', hora: 'Horário das mudanças', folga: 'Dias de avaliação', faz: 'Nome da fazenda', tel: 'WhatsApp' };
+function fotoEstado() { const l = { pastos: {}, lotes: {}, ev: {} }; ['pastos', 'lotes', 'ev'].forEach(col => arrDe(col).forEach((o, i) => { l[col][o.id] = JSON.stringify(ser(col, o, i)); })); return l; }
+const fH = t => t != null ? fDT(t) : '';
+// compara o estado atual com o último conhecido; devolve as gravações e as frases do registro
+function calcularMudancas(last, cols, cfgLast) {
+  const ops = [], itens = [], ordReg = new Set(), saidas = {}, entradas = {}, novosP = {};
+  const LT = n => /^lote\b/i.test(n) ? n : 'Lote ' + n;
+  const nomeLote = id => { const l = Lt(id); if (l) return l.nome; const j = last.lotes[id]; return j ? JSON.parse(j).nome : 'lote'; };
+  const pastoTxt = (id, d) => { const p = P(id); const o = p ? { nome: p.nome, reg: p.reg } : d || (last.pastos[id] ? JSON.parse(last.pastos[id]) : { nome: '?', reg: '' }); return `pasto ${o.nome}${o.reg ? ' (' + o.reg + ')' : ''}`; };
+  cols.forEach(col => {
+    const vistos = new Set();
+    arrDe(col).forEach((o, i) => {
+      const d = ser(col, o, i), j = JSON.stringify(d); vistos.add(o.id);
+      if (last[col][o.id] === j) return;
+      const a = last[col][o.id] ? JSON.parse(last[col][o.id]) : null;
+      ops.push(['set', col, o.id, d]); last[col][o.id] = j;
+      if (col === 'pastos') {
+        const nm = `${d.reg ? d.reg + ': ' : ''}pasto ${a ? a.nome : d.nome}`;
+        if (!a) { (novosP[d.reg] = novosP[d.reg] || []).push(d.nome); return; }
+        if (a.nome !== d.nome) itens.push(`${nm} renomeado para ${d.nome}`);
+        if (a.reg !== d.reg) itens.push(`Pasto ${d.nome} mudou da região ${a.reg || '—'} para ${d.reg || '—'}`);
+        if (a.ha !== d.ha) itens.push(`${nm}: área ${a.ha ?? '—'} → ${d.ha ?? '—'} ha`);
+        if (a.ocup !== d.ocup) itens.push(`${nm}: dias de pastejo ${a.ocup ?? 'padrão'} → ${d.ocup ?? 'padrão'}`);
+        if (a.desc !== d.desc) itens.push(`${nm}: dias de recuperação ${a.desc ?? 'padrão'} → ${d.desc ?? 'padrão'}`);
+        if (a.geo !== d.geo) itens.push(`${nm}: desenho atualizado`);
+        if (a.ord !== d.ord) ordReg.add(d.reg);
+      } else if (col === 'lotes') {
+        if (!a) { itens.push(`${LT(d.nome)} cadastrado${d.cab ? ' (' + d.cab + ' cab.)' : ''}`); return; }
+        if (a.nome !== d.nome) itens.push(`${LT(a.nome)} renomeado para ${d.nome}`);
+        if (a.cab !== d.cab) itens.push(`${LT(d.nome)}: cabeças ${a.cab ?? '—'} → ${d.cab ?? '—'}`);
+        if (a.reg !== d.reg) itens.push(`${LT(d.nome)}: região ${a.reg || '—'} → ${d.reg || '—'}`);
+        if (a.cor !== d.cor) itens.push(`${LT(d.nome)}: cor alterada`);
+      } else {
+        const ln = nomeLote(d.lote), pt = pastoTxt(d.pasto);
+        if (!a) {
+          if (d.sai == null) entradas[d.lote] = { pt, t: d.ent, txt: `${ln} entrou no ${pt} em ${fH(d.ent)}` };
+          else itens.push(`Pastejo lançado: ${ln} no ${pt}, de ${fH(d.ent)} a ${fH(d.sai)}`);
+          return;
+        }
+        if (a.sai == null && d.sai != null) saidas[d.lote] = { pt, t: d.sai, txt: `${ln} saiu do ${pt} em ${fH(d.sai)}` };
+        else if (a.sai != null && d.sai == null) itens.push(`${ln}: saída do ${pt} apagada (gado volta a constar lá)`);
+        else if (a.sai !== d.sai) itens.push(`${ln} no ${pt}: saída ${fH(a.sai)} → ${fH(d.sai)}`);
+        if (a.ent !== d.ent) itens.push(`${ln} no ${pt}: entrada ${fH(a.ent)} → ${fH(d.ent)}`);
+        if (a.pasto !== d.pasto) itens.push(`${ln}: pastejo movido do ${pastoTxt(a.pasto)} para o ${pt}`);
+      }
+    });
+    Object.keys(last[col]).forEach(id => {
+      if (vistos.has(id)) return;
+      const a = JSON.parse(last[col][id]);
+      ops.push(['del', col, id]); delete last[col][id];
+      if (col === 'pastos') itens.push(`Pasto ${a.nome}${a.reg ? ' (' + a.reg + ')' : ''} excluído`);
+      else if (col === 'lotes') itens.push(`${LT(a.nome)} excluído`);
+      else itens.push(`Pastejo apagado: ${nomeLote(a.lote)} no ${pastoTxt(a.pasto)} (entrada ${fH(a.ent)}${a.sai != null ? ', saída ' + fH(a.sai) : ''})`);
+    });
+  });
+  // saída + entrada do mesmo lote = passagem de pasto
+  Object.keys(entradas).forEach(lid => {
+    const e = entradas[lid], s = saidas[lid];
+    if (s && s.t === e.t) { itens.unshift(`${nomeLote(lid)} passou do ${s.pt} para o ${e.pt} em ${fH(e.t)}`); delete saidas[lid]; }
+    else itens.unshift(e.txt);
+  });
+  Object.values(saidas).forEach(s => itens.unshift(s.txt));
+  Object.keys(novosP).forEach(r => itens.push(`${r || 'Sem região'}: ${novosP[r].length > 1 ? 'pastos ' + novosP[r].join(', ') + ' cadastrados' : 'pasto ' + novosP[r][0] + ' cadastrado'}`));
+  ordReg.forEach(r => { if (!novosP[r]) itens.push(`${r || 'Sem região'}: ordem do giro alterada para ${seqReg(r).map(p => p.nome).join(' → ')}`); });
+  let cfgJ = cfgLast;
+  if (cfgLast !== undefined) {
+    const c = cfgNuvem(); cfgJ = JSON.stringify(c);
+    if (cfgJ !== cfgLast) {
+      ops.push(['cfg', c]);
+      const a = cfgLast ? JSON.parse(cfgLast) : {};
+      Object.keys(CFG_LOG).forEach(k => { if (cfgLast && a[k] !== c[k]) itens.push(`${CFG_LOG[k]}: ${a[k] ?? '—'} → ${c[k] ?? '—'}`); });
+    }
+  }
+  return { ops, itens, cfgJ };
+}
+function iniciarRegistroLocal() { LOC.last = fotoEstado(); LOC.cfg = JSON.stringify(cfgNuvem()); }
+function registrarLocal(extra) {
+  if (!LOC.last) return;
+  const r = calcularMudancas(LOC.last, ['pastos', 'lotes', 'ev'], LOC.cfg); LOC.cfg = r.cfgJ;
+  if (extra) r.itens.unshift(extra);
+  if (!r.itens.length) return;
+  ST.log = ST.log || []; ST.log.unshift({ t: Date.now(), quem: 'este aparelho', itens: r.itens });
+  if (ST.log.length > 400) ST.log.length = 400;
+  if (abaAtual === 'log') renderLog();
+}
+function gravarLog(itens) { // ações fora do cadastro (equipe, convites)
+  if (!itens.length) return;
+  if (NV.on && NV.fid) { const F = FS(); F.setDoc(F.doc(F.collection(NV.db, 'fazendas', NV.fid, 'logs')), { t: Date.now(), uid: NV.user.uid, email: NV.user.email || '', itens }).catch(() => { }); }
+  else { ST.log = ST.log || []; ST.log.unshift({ t: Date.now(), quem: 'este aparelho', itens }); salvar(); }
+}
+function assinarLogs() {
+  if (LOGS.unsub) { try { LOGS.unsub(); } catch (e) { } LOGS.unsub = null; }
+  if (!NV.on || NV.papel !== 'admin') return;
+  const F = FS(), col = F.collection(NV.db, 'fazendas', NV.fid, 'logs');
+  const q = F.query ? F.query(col, F.orderBy('t', 'desc'), F.limit(400)) : col;
+  LOGS.unsub = F.onSnapshot(q, s => { LOGS.lista = s.docs.map(d => d.data()); if (abaAtual === 'log') renderLog(); }, () => { LOGS.lista = null; if (abaAtual === 'log') renderLog(); });
+}
+function renderLog() {
+  const box = $('logBox'), filtroTxt = ($('logBusca').value || '').trim().toLowerCase();
+  let lista = NV.on ? LOGS.lista : (ST.log || []);
+  if (lista === null) { box.innerHTML = '<div class="aviso">Não foi possível ler o registro. Confira se as regras novas (firestore.rules) foram publicadas no Firebase.</div>'; return; }
+  lista = (lista || []).slice().sort((a, b) => b.t - a.t).map(g => ({ ...g, quem: g.email || g.quem || 'usuário', itens: g.itens || [] }));
+  if (filtroTxt) lista = lista.map(g => ({ ...g, itens: (g.quem.toLowerCase().includes(filtroTxt) ? g.itens : g.itens.filter(x => x.toLowerCase().includes(filtroTxt))) })).filter(g => g.itens.length);
+  if (!lista.length) { box.innerHTML = `<div class="vazio">${filtroTxt ? 'Nada encontrado.' : 'Nenhuma alteração registrada ainda. A partir de agora, tudo o que for mudado aparece aqui.'}</div>`; return; }
+  let dia = '';
+  box.innerHTML = lista.map(g => {
+    const d = new Date(g.t), dd = d.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const cab = dd !== dia ? `<div class="logdia">${dd}</div>` : ''; dia = dd;
+    return `${cab}<div class="logit"><div class="loghr">${z2(d.getHours())}:${z2(d.getMinutes())}</div><div><div class="logquem">${esc(g.quem)}</div><ul>${g.itens.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>`;
+  }).join('');
+}
 
 // ---------- formatação ----------
 const z2 = n => String(n).padStart(2, '0');
@@ -2583,14 +2714,14 @@ $('fImp').onchange = async () => {
     const d = JSON.parse(await f.text());
     if (!d || !Array.isArray(d.pastos) || !Array.isArray(d.ev)) throw new Error('arquivo não é um backup do pastejo');
     if (!confirm('Substituir todos os dados atuais pelo backup?')) return;
-    ST = Object.assign(novoEstado(), d); ST.cfg = Object.assign(novoEstado().cfg, d.cfg || {});
+    const logAnt = ST.log; ST = Object.assign(novoEstado(), d); ST.cfg = Object.assign(novoEstado().cfg, d.cfg || {}); if (!NV.on) ST.log = logAnt;
     ultimo = null; for (const k in recibos) delete recibos[k];
-    mudou(); toast('Backup importado.');
+    mudou('Backup importado: ' + f.name); toast('Backup importado.');
   } catch (e) { toast('Não foi possível importar: ' + e.message, 5000); }
 };
 $('bZerar').onclick = () => {
   if (!confirm('Apagar todos os pastos, lotes e o histórico deste aparelho? Exporte um backup antes se precisar.')) return;
-  ST = novoEstado(); ultimo = null; for (const k in recibos) delete recibos[k]; mudou();
+  const logAnt = ST.log; ST = novoEstado(); ST.log = logAnt; ultimo = null; for (const k in recibos) delete recibos[k]; mudou('Todos os dados foram apagados');
 };
 $('bIcsAll').onclick = () => {
   const evs = [], t = now(), ate = t + 30 * DAY, sim = simular(ate);
@@ -2783,8 +2914,11 @@ function renderMapa() {
 // numerar clicando / editar pasto pelo mapa
 let numerando = false; const proxNum = {};
 function poly0() { $('numInfo').textContent = 'Clique nos pastos na ordem do rodízio.' + (Object.keys(proxNum).length ? ' Próximo: ' + Object.entries(proxNum).map(([r, n]) => `${$('numPref').value}${n} (${regNome(r)})`).join(', ') : ''); }
+function sairNumeracao() { if (!numerando) return; numerando = false; $('bNum').classList.remove('on'); $('numBox').hidden = true; $('bNum').textContent = 'Numerar clicando'; }
 $('bNum').onclick = () => {
+  if (!numerando && !confirm('Modo NUMERAÇÃO: cada pasto que você tocar no mapa será RENOMEADO (1, 2, 3…) e mudará de posição no giro. Ativar?')) return;
   numerando = !numerando; for (const k in proxNum) delete proxNum[k];
+  $('bNum').textContent = numerando ? 'Sair da numeração' : 'Numerar clicando';
   $('bNum').classList.toggle('on', numerando); $('numBox').hidden = !numerando;
   if (numerando) poly0();
 };
@@ -2793,10 +2927,10 @@ function cliquePasto(p, latlng) {
   if (numerando) {
     const r = regDe(p);
     if (!(r in proxNum)) proxNum[r] = Math.max(1, +$('numIni').value || 1);
-    const n = proxNum[r]++;
+    const n = proxNum[r]++, antes = p.nome;
     p.nome = ($('numPref').value || '') + n;
     moverNaRegiao(p, n - 1);
-    mudou(); poly0(); return;
+    mudou('Numeração pelo mapa'); poly0(); toast(`${regNome(r)}: pasto ${antes} → ${p.nome}`); return;
   }
   const seq = seqReg(regDe(p));
   const html = `<div class="ppop"><b>Editar pasto</b>
@@ -3050,6 +3184,7 @@ function renderPlanilha() {
     if (x) x.onclick = () => { if (confirm(`Apagar o pastejo do ${p.nome} (entrada ${fD(e.ent)})?`)) { ST.ev = ST.ev.filter(y => y !== e); mudou(); } };
   });
 }
+$('logBusca').oninput = () => renderLog();
 $('plCsv').onclick = () => {
   const L = ['Região;Pasto;Entrada;Saída prevista;Saída;Dias'];
   regioes().forEach(r => linhasPlanilha(r).forEach(({ p, e, prev, dias }) => {
@@ -3059,12 +3194,14 @@ $('plCsv').onclick = () => {
   baixar(new Blob(['﻿' + L.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'planilha_pastejo.csv');
 };
 function abrirAba(t) {
+  if (t !== 'mapa') sairNumeracao();
   abaAtual = t;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === 't-' + t));
   if (t === 'mapa') requestAnimationFrame(renderMapa);
   if (t === 'linha') requestAnimationFrame(renderGantt);
   if (t === 'plan') renderPlanilha();
+  if (t === 'log') renderLog();
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => abrirAba(b.dataset.t));
@@ -3134,6 +3271,8 @@ const FB_CONFIG = {
 const NV = { on: false, fid: null, papel: null, user: null, db: null, auth: null, faz: null,
   dados: {}, meta: {}, prontos: new Set(), last: { pastos: {}, lotes: {}, ev: {} }, lastCfg: null, unsub: [], pend: false };
 const FS = () => window.FBX.fs, AU = () => window.FBX.au;
+// o código do convite é lido uma única vez e tirado do endereço (não fica reaparecendo)
+let CONVITE_PEND = (() => { try { const q = new URLSearchParams(location.search), c = q.get('convite'); if (c) { q.delete('convite'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } return c; } catch (e) { return null; } })();
 let modoLocal = false; // escolheu "usar sem login" neste aparelho
 const gravarModo = v => { modoLocal = v; if (DB.db) DB.set('modo', v ? 'local' : '').catch(() => { }); };
 
@@ -3167,8 +3306,7 @@ function telaLogin(modo, msg) {
     const n = ST.pastos.length, l = ST.lotes.length, ev = ST.ev.length;
     $('nvLevarBox').hidden = !(n || l || ev);
     $('nvLevarTxt').textContent = `Levar os dados já cadastrados neste aparelho (${n} pastos, ${l} lotes, ${ev} movimentações)`;
-    const cv = new URLSearchParams(location.search).get('convite');
-    if (cv) $('nvCod').value = cv;
+    if (CONVITE_PEND) $('nvCod').value = CONVITE_PEND;
   }
 }
 function fecharTelas() { $('nvOv').hidden = true; }
@@ -3193,23 +3331,19 @@ const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.
 const arrDe = col => col === 'pastos' ? ST.pastos : col === 'lotes' ? ST.lotes : ST.ev;
 
 // envia para a nuvem só o que mudou desde o último estado conhecido
-function sincronizar() {
+function sincronizar(extra) {
   if (!NV.on || !NV.fid) return;
-  const F = FS(), adm = NV.papel === 'admin', ops = [];
-  (adm ? ['pastos', 'lotes', 'ev'] : ['ev']).forEach(col => {
-    const vistos = new Set();
-    arrDe(col).forEach((o, i) => {
-      const d = ser(col, o, i), j = JSON.stringify(d); vistos.add(o.id);
-      if (NV.last[col][o.id] !== j) { ops.push(['set', col, o.id, d]); NV.last[col][o.id] = j; }
-    });
-    Object.keys(NV.last[col]).forEach(id => { if (!vistos.has(id)) { ops.push(['del', col, id]); delete NV.last[col][id]; } });
-  });
-  if (adm) { const c = cfgNuvem(), j = JSON.stringify(c); if (j !== NV.lastCfg) { ops.push(['cfg', c]); NV.lastCfg = j; } }
+  const F = FS(), adm = NV.papel === 'admin';
+  const r = calcularMudancas(NV.last, adm ? ['pastos', 'lotes', 'ev'] : ['ev'], adm ? NV.lastCfg : undefined);
+  const ops = r.ops; if (adm) NV.lastCfg = r.cfgJ;
+  if (extra) r.itens.unshift(extra);
+  if (r.itens.length) F.setDoc(F.doc(F.collection(NV.db, 'fazendas', NV.fid, 'logs')), { t: Date.now(), uid: NV.user.uid, email: NV.user.email || '', itens: r.itens }).catch(() => { }); // separado: se falhar, não trava os dados
   for (let k = 0; k < ops.length; k += 400) {
     const b = F.writeBatch(NV.db);
     ops.slice(k, k + 400).forEach(op => {
       if (op[0] === 'set') b.set(F.doc(NV.db, 'fazendas', NV.fid, op[1], op[2]), op[3]);
       else if (op[0] === 'del') b.delete(F.doc(NV.db, 'fazendas', NV.fid, op[1], op[2]));
+      else if (op[0] === 'log') b.set(F.doc(F.collection(NV.db, 'fazendas', NV.fid, 'logs')), op[1]);
       else b.update(F.doc(NV.db, 'fazendas', NV.fid), { cfg: op[1] });
     });
     b.commit().catch(e => { toast('Não foi salvo na nuvem: ' + msgErro(e), 6000); });
@@ -3229,14 +3363,15 @@ function montar() {
   NV.last = { pastos: {}, lotes: {}, ev: {} };
   ['pastos', 'lotes', 'ev'].forEach(col => arrDe(col).forEach((o, i) => { NV.last[col][o.id] = JSON.stringify(ser(col, o, i)); }));
   NV.lastCfg = JSON.stringify(cfgNuvem());
-  if (NV.papel === 'admin' && migrar()) { sincronizar(); toast('Ajuste aplicado: 9 dias de pastejo e sentido de giro de cada boiada.', 6000); }
+  if (NV.papel === 'admin' && migrar()) { sincronizar('Ajuste automático do app: 9 dias de pastejo e sentido de giro de cada boiada'); toast('Ajuste aplicado: 9 dias de pastejo e sentido de giro de cada boiada.', 6000); }
+  if (!LOGS.unsub) assinarLogs();
   fecharTelas(); aplicarPapel(); statusNuvem(); renderSeguro();
 }
 const editando = () => { const a = document.activeElement; return a && /INPUT|SELECT|TEXTAREA/.test(a.tagName) && a.closest('main,.leaflet-popup'); };
 function renderSeguro() { if (editando()) { NV.pend = true; return; } NV.pend = false; render(); }
 document.addEventListener('focusout', () => { if (NV.pend) setTimeout(() => { if (NV.pend && !editando()) { NV.pend = false; render(); } }, 120); });
 
-function desconectar() { NV.unsub.forEach(u => { try { u(); } catch (e) { } }); NV.unsub = []; NV.prontos = new Set(); NV.dados = {}; NV.meta = {}; }
+function desconectar() { if (LOGS.unsub) { try { LOGS.unsub(); } catch (e) { } LOGS.unsub = null; } NV.unsub.forEach(u => { try { u(); } catch (e) { } }); NV.unsub = []; NV.prontos = new Set(); NV.dados = {}; NV.meta = {}; }
 function conectar(fid) {
   const F = FS(); desconectar();
   NV.fid = fid; NV.on = true;
@@ -3259,19 +3394,27 @@ function semAcesso(e) {
 }
 
 async function entrou(u) {
+  if (u && NV.user && NV.user.uid === u.uid && (NV.on || NV.entrando)) return; // mesmo usuário: nada a refazer
   NV.user = u;
-  if (!u) { desconectar(); NV.on = false; statusNuvem(); aplicarPapel(); if (modoLocal && !new URLSearchParams(location.search).get('convite')) { fecharTelas(); renderEquipe(); return; } return telaLogin('login'); }
+  if (!u) { desconectar(); NV.on = false; statusNuvem(); aplicarPapel(); if (modoLocal && !CONVITE_PEND) { fecharTelas(); renderEquipe(); return; } return telaLogin('login'); }
   if (modoLocal) gravarModo(false);
   telaLogin('carregando');
   const F = FS();
   try {
-    const cv = new URLSearchParams(location.search).get('convite');
+    NV.entrando = true;
+    const cv = CONVITE_PEND; CONVITE_PEND = null;
     const us = await F.getDoc(F.doc(NV.db, 'usuarios', u.uid));
     const fid = us.exists() ? us.data().fid : null;
-    if (cv && (!fid || confirm('Você recebeu um convite para outra fazenda. Entrar nela agora?'))) return aceitarConvite(cv);
+    if (cv) {
+      if (!fid) { NV.entrando = false; return aceitarConvite(cv); }
+      let c = null; try { const d = await F.getDoc(F.doc(NV.db, 'convites', String(cv).toLowerCase())); c = d.exists() ? d.data() : null; } catch (e) { }
+      if (c && c.fid === fid) { NV.entrando = false; conectar(fid); return toast('Você já faz parte desta fazenda.', 4000); }
+      if (c && confirm('Este convite é de outra fazenda. Sair da fazenda atual e entrar nela?')) { NV.entrando = false; return aceitarConvite(cv); }
+    }
+    NV.entrando = false;
     if (fid) return conectar(fid);
     telaLogin('faz');
-  } catch (e) { telaLogin('faz', msgErro(e)); }
+  } catch (e) { NV.entrando = false; telaLogin('faz', msgErro(e)); }
 }
 
 async function criarFazenda() {
@@ -3300,10 +3443,15 @@ async function aceitarConvite(cod) {
     if (!cv.exists()) return telaLogin('faz', 'Convite não encontrado. Confira o código.');
     const c = cv.data();
     if (c.validoAte && c.validoAte.toMillis() < Date.now()) return telaLogin('faz', 'Este convite expirou. Peça um novo ao administrador.');
+    // já é membro dessa fazenda? então só conecta (nunca troca o acesso de quem já está)
+    try {
+      const fz = await F.getDoc(F.doc(NV.db, 'fazendas', c.fid));
+      if (fz.exists() && (fz.data().membros || {})[u.uid]) { await F.setDoc(F.doc(NV.db, 'usuarios', u.uid), { fid: c.fid }); ST = novoEstado(); conectar(c.fid); return toast('Você já faz parte desta fazenda.', 4000); }
+    } catch (e) { /* sem acesso ainda: segue para entrar */ }
     await F.updateDoc(F.doc(NV.db, 'fazendas', c.fid), { ['membros.' + u.uid]: c.papel, ['nomes.' + u.uid]: { email: u.email || '' }, convite: cod });
     await F.setDoc(F.doc(NV.db, 'usuarios', u.uid), { fid: c.fid });
-    history.replaceState(null, '', location.pathname);
     ST = novoEstado(); conectar(c.fid); toast('Você entrou na fazenda.', 4000);
+    gravarLog([`${u.email || 'Nova pessoa'} entrou na fazenda pelo convite (${c.papel === 'admin' ? 'administrador' : 'campo'})`]);
   } catch (e) { telaLogin('faz', msgErro(e)); }
 }
 
@@ -3323,9 +3471,10 @@ function renderEquipe() {
     <td>${uid === NV.user.uid ? '' : '<button class="peq del" data-a="rem">Remover</button>'}</td></tr>`).join('');
   box.querySelectorAll('tr').forEach(tr => {
     const uid = tr.dataset.u, F = FS(), ref = F.doc(NV.db, 'fazendas', NV.fid);
-    tr.querySelector('[data-a="papel"]').onchange = ev => F.updateDoc(ref, { ['membros.' + uid]: ev.target.value }).catch(e => toast(msgErro(e)));
+    const quemE = (nm[uid] && nm[uid].email) || uid;
+    tr.querySelector('[data-a="papel"]').onchange = ev => F.updateDoc(ref, { ['membros.' + uid]: ev.target.value }).then(() => gravarLog([`Acesso de ${quemE} alterado para ${ev.target.value === 'admin' ? 'administrador' : 'campo'}`])).catch(e => toast(msgErro(e)));
     const r = tr.querySelector('[data-a="rem"]');
-    if (r) r.onclick = () => { if (confirm('Remover o acesso desta pessoa?')) F.updateDoc(ref, { ['membros.' + uid]: F.deleteField(), ['nomes.' + uid]: F.deleteField() }).catch(e => toast(msgErro(e))); };
+    if (r) r.onclick = () => { if (confirm('Remover o acesso desta pessoa?')) F.updateDoc(ref, { ['membros.' + uid]: F.deleteField(), ['nomes.' + uid]: F.deleteField() }).then(() => gravarLog([`Acesso de ${quemE} removido`])).catch(e => toast(msgErro(e))); };
   });
 }
 async function gerarConvite() {
@@ -3334,6 +3483,7 @@ async function gerarConvite() {
   try {
     await F.setDoc(F.doc(NV.db, 'convites', cod), { fid: NV.fid, papel, validoAte: F.Timestamp.fromMillis(Date.now() + 7 * DAY), criadoPor: NV.user.uid });
     const link = location.origin + location.pathname + '?convite=' + cod;
+    gravarLog([`Convite gerado (${papel === 'admin' ? 'administrador' : 'campo'})`]);
     $('eqLink').hidden = false;
     $('eqLinkTxt').value = link;
     $('eqWa').href = 'https://wa.me/?text=' + encodeURIComponent(`Convite para o app de pastejo${NV.faz ? ' (' + NV.faz.nome + ')' : ''}: abra o link, crie sua conta e você já entra na fazenda.\n${link}\n(código: ${cod}, vale 7 dias)`);
@@ -3403,11 +3553,12 @@ $('eqCopiar').onclick = () => { const i = $('eqLinkTxt'); i.select(); try { navi
     const raw = await DB.get('estado');
     modoLocal = (await DB.get('modo')) === 'local';
     const carregar = d => { ST = Object.assign(novoEstado(), d); ST.cfg = Object.assign(novoEstado().cfg, d.cfg || {}); ST.notif = ST.notif || {}; };
-    if (raw) { carregar(JSON.parse(raw)); if (migrar()) salvar(); }
+    if (raw) { carregar(JSON.parse(raw)); iniciarRegistroLocal(); if (migrar()) { registrarLocal('Ajuste automático do app: 9 dias de pastejo e sentido de giro de cada boiada'); salvar(); } }
     else { // primeira vez neste aparelho: usa os dados que vieram dentro do arquivo, se houver
-      const sd = semente(); if (sd) { carregar(sd); salvar(); setTimeout(() => toast('Dados iniciais carregados do arquivo publicado.', 4000), 400); }
+      const sd = semente(); if (sd) { carregar(sd); iniciarRegistroLocal(); salvar(); setTimeout(() => toast('Dados iniciais carregados do arquivo publicado.', 4000), 400); }
     }
   } catch (e) { podeSalvar = false; $('semArmaz').hidden = false; }
+  if (!LOC.last) iniciarRegistroLocal();
   notifStatus();
   render(); checarNotif();
   // nuvem: espera o Firebase carregar (vem por <script type="module">)
