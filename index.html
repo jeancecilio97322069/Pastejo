@@ -939,6 +939,19 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 .avitem .mudar{margin-top:5px;font-size:15px;font-weight:700;color:var(--mata)}
 .avitem .mudar.venc{color:var(--alerta)}
 .avitem details{margin-top:8px}
+.avitem .mudar.mant{color:#2F6DB5}
+.bmanter{width:100%;margin-top:2px;border-color:#2F6DB5;color:#2F6DB5;font-weight:600;padding:9px;border-radius:10px;background:#fff}
+.bmanter:hover{background:#EAF2FC}
+svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
+.ico .sel.mant svg.pausa{width:62%;height:62%;vertical-align:0}
+.ico .sel.mant{background:#2F6DB5;color:#fff;font-size:calc(var(--t) * .28)}
+.ico.mantido{animation-duration:2.6s}
+.mantopc{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.mantopc button{padding:10px 6px;border-radius:10px;font-weight:700;font-size:16px;line-height:1.2;border-color:#2F6DB5;color:#2F6DB5}
+.mantopc button small{font-weight:500;font-size:12px}
+.mantopc button.on{background:#2F6DB5;color:#fff}
+.passcard input[type=date]{font-size:16px;padding:8px}
+.pl td.prev input{min-width:130px}
 .logbox{background:var(--papel);border:1px solid var(--linha);border-radius:12px;overflow:hidden}
 .logdia{background:#E3EADC;color:var(--mata);font-weight:700;font-size:12.5px;padding:6px 14px;text-transform:capitalize}
 .logit{display:flex;gap:12px;padding:9px 14px;border-bottom:1px dotted var(--linha);font-size:13.5px}
@@ -1048,7 +1061,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
       <span class="hint so-admin" style="margin:0">Fora desse modo, clique num pasto para editar nome, região, posição e dias.</span>
     </div>
     <div id="mapBox"><div id="map"></div></div>
-    <div class="leg"><span><i style="background:#C0392B"></i>com gado (pasto em uso/degradação)</span><span><i class="grad"></i>em recuperação (fica mais verde conforme recupera)</span><span><i style="background:var(--ok)"></i>pronto</span>
+    <div class="leg"><span><i style="background:#C0392B"></i>com gado (pasto em uso/degradação)</span><span id="legMant"></span><span><i class="grad"></i>em recuperação (fica mais verde conforme recupera)</span><span><i style="background:var(--ok)"></i>pronto</span>
       <button class="peq" id="bBase" style="margin-left:auto">Fundo: Google</button></div>
     <div class="hint" id="mapSemGeo"></div>
 
@@ -1906,6 +1919,7 @@ function calcularMudancas(last, cols, cfgLast) {
         if (a.sai == null && d.sai != null) saidas[d.lote] = { pt, t: d.sai, txt: `${ln} saiu do ${pt} em ${fH(d.sai)}` };
         else if (a.sai != null && d.sai == null) itens.push(`${ln}: saída do ${pt} apagada (gado volta a constar lá)`);
         else if (a.sai !== d.sai) itens.push(`${ln} no ${pt}: saída ${fH(a.sai)} → ${fH(d.sai)}`);
+        if ((a.adiado ?? null) !== (d.adiado ?? null) && d.sai == null) itens.push(d.adiado ? `${ln} no ${pt}: mudança remarcada para ${fH(d.adiado)} (avaliação em campo)` : `${ln} no ${pt}: volta ao prazo normal de mudança`);
         if (a.ent !== d.ent) itens.push(`${ln} no ${pt}: entrada ${fH(a.ent)} → ${fH(d.ent)}`);
         if (a.pasto !== d.pasto) itens.push(`${ln}: pastejo movido do ${pastoTxt(a.pasto)} para o ${pt}`);
       }
@@ -2071,6 +2085,8 @@ const prazoDe = (ent, p) => naHora(ent + par(p, 'ocup') * DAY, ent);
 const folga = () => { const f = +ST.cfg.folga; return isFinite(f) && f >= 0 ? f : 1; };
 // janela: avaliação visual (prazo - folga) · mudança prevista (prazo) · limite para segurar (prazo + folga)
 const janela = prazo => ({ aval: prazo - folga() * DAY, prazo, lim: prazo + folga() * DAY });
+const PAUSA = '<svg class="pausa" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.6" height="8" rx=".6" fill="currentColor"/><rect x="5.9" y="1" width="2.6" height="8" rx=".6" fill="currentColor"/></svg>';
+const prazoEv = (e, p) => (e && e.adiado) ? e.adiado : prazoDe(e.ent, p); // nova data decidida no campo vale no lugar do prazo normal
 const fimRecDe = (sai, p) => naHora(sai + par(p, 'desc') * DAY, sai);
 function horaPadrao() { const t = now(), h = naHora(t); return h <= t ? h : t; }
 const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
@@ -2086,7 +2102,7 @@ function ultimaSaida(pid, evs, t) {
 // situação do pasto no instante t
 function situacao(p, evs = ST.ev, t = now()) {
   const occ = evs.find(e => e.pasto === p.id && e.sai == null && e.ent <= t);
-  if (occ) { const prazo = prazoDe(occ.ent, p); return { st: 'ocupado', ev: occ, lote: occ.lote, prazo, pct: (t - occ.ent) / (prazo - occ.ent) }; }
+  if (occ) { const prazo = prazoEv(occ, p); return { st: 'ocupado', ev: occ, lote: occ.lote, prazo, pct: (t - occ.ent) / (prazo - occ.ent) }; }
   const last = ultimaSaida(p.id, evs, t);
   if (last) {
     const fim = fimRecDe(last.sai, p);
@@ -2105,17 +2121,19 @@ function sugestao(l, evs = ST.ev, t = now(), reservados) {
   if (reservados === undefined && evs === ST.ev) return sugestoesAtuais()[l.id] || null;
   const o = aberto(l.id, evs); if (!o) return null;
   const p = P(o.pasto), seq = seqReg(regDe(p)), n = seq.length;
-  const prazo = prazoDe(o.ent, p), tm = Math.max(t, prazo);
+  const prazo = prazoEv(o, p), tm = Math.max(t, prazo);
   const i = seq.findIndex(x => x.id === o.pasto);
-  let prox = null, melhor = null, melhorT = Infinity;
+  let prox = null, melhor = null, melhorT = Infinity, pronto = null, prontoT = Infinity;
   for (let k = 1; k < n; k++) {
     const c = seq[(i + k) % n];
     if (ocupante(c.id, evs) || (reservados && reservados.has(c.id))) { if (!prox) prox = { p: c, ocupado: true, reservado: !ocupante(c.id, evs) }; continue; }
     const r = prontoEm(c, evs);
-    if (!prox) prox = { p: c, pronto: r };
-    if (r <= tm) return { p: c, pronto: r, prox, espera: 0, prazo, pulou: c !== prox.p };
+    if (!prox) { prox = { p: c, pronto: r }; if (r <= tm) return { p: c, pronto: r, prox, espera: 0, prazo, pulou: false }; }
+    // fora da sequência: entre os já recuperados, o que está pronto há mais tempo (mais descansado)
+    if (r <= tm && r < prontoT) { prontoT = r; pronto = c; }
     if (r < melhorT) { melhorT = r; melhor = c; }
   }
+  if (pronto) return { p: pronto, pronto: prontoT, prox, espera: 0, prazo, pulou: true };
   if (melhor) return { p: melhor, pronto: melhorT, prox, espera: melhorT - tm, prazo, pulou: melhor !== prox.p };
   return { p: null, prox, prazo };
 }
@@ -2123,7 +2141,7 @@ function sugestao(l, evs = ST.ev, t = now(), reservados) {
 function sugestoesAtuais() {
   const t = now(), res = new Set(), out = {};
   const ls = ST.lotes.map(l => ({ l, o: aberto(l.id) })).filter(x => x.o && P(x.o.pasto))
-    .sort((a, b) => prazoDe(a.o.ent, P(a.o.pasto)) - prazoDe(b.o.ent, P(b.o.pasto)));
+    .sort((a, b) => prazoEv(a.o, P(a.o.pasto)) - prazoEv(b.o, P(b.o.pasto)));
   ls.forEach(({ l }) => { const s = sugestao(l, ST.ev, t, res); out[l.id] = s; if (s && s.p) res.add(s.p.id); });
   return out;
 }
@@ -2135,7 +2153,7 @@ function simular(ate) {
     for (const l of ST.lotes) {
       const o = aberto(l.id, evs); if (!o) continue;
       const p = P(o.pasto); if (!p) continue;
-      const pr = prazoDe(o.ent, p);
+      const pr = prazoEv(o, p);
       if (pr < prazoMin) { prazoMin = pr; alvo = l; ab = o; }
     }
     if (!alvo) break;
@@ -2178,8 +2196,8 @@ function svgCapim(cor) {
     <path d="M5 58h52" fill="none" stroke-linecap="round"/></g></svg>`;
 }
 // tipo: 'boi' | 'recuperando' | 'pronto'
-function icone(tipo, cor, atras, tam = 38) {
-  if (tipo === 'boi') return `<span class="ico${atras ? ' atras' : ''}" style="--t:${tam}px;--rc:${atras ? '#E0402F' : cor}">${svgBoi(cor)}</span>`;
+function icone(tipo, cor, atras, tam = 38, mantido) {
+  if (tipo === 'boi') return `<span class="ico${atras ? ' atras' : ''}${mantido ? ' mantido' : ''}" style="--t:${tam}px;--rc:${atras ? '#E0402F' : mantido ? '#2F6DB5' : cor}">${svgBoi(cor)}${mantido ? '<span class="sel mant" title="Mantido após avaliação">' + PAUSA + '</span>' : ''}</span>`;
   const sel = tipo === 'pronto' ? '<span class="sel ok">✓</span>' : '<span class="sel alerta">!</span>';
   return `<span class="ico capim ${tipo}" style="--t:${tam}px;--rc:${tipo === 'pronto' ? '#2F8F4E' : '#E3B23C'}">${svgCapim(cor)}${sel}</span>`;
 }
@@ -2190,7 +2208,7 @@ function alertas(t = now()) {
     const o = aberto(l.id); if (!o) continue;
     const p = P(o.pasto); if (!p) continue;
     if (!visivel(p)) continue;
-    const prazo = prazoDe(o.ent, p), s = sugestao(l), dest = s && s.p ? s.p.nome : 'nenhum pasto pronto', rg = regDe(p) ? ' · ' + regDe(p) : '';
+    const prazo = prazoEv(o, p), s = sugestao(l), dest = s && s.p ? s.p.nome : 'nenhum pasto pronto', rg = regDe(p) ? ' · ' + regDe(p) : '';
     const J = janela(prazo);
     if (t >= J.lim) out.push({ nv: 'alto', key: 'mud:' + o.id, tit: `${l.nome}${rg}: hora de mudar de pasto`, txt: `Prazo no ${p.nome} venceu há ${fDur(t - prazo)}. Sugestão: ${dest}.` });
     else if (t >= J.aval) out.push({ nv: 'medio', key: 'mud24:' + o.id, tit: `${l.nome}${rg}: mudança em ${fDur(prazo - t)}`, txt: `Sai do ${p.nome} em ${fDT(prazo)}. Sugestão: ${dest}.` });
@@ -2231,7 +2249,7 @@ const gLink = e => 'https://calendar.google.com/calendar/render?action=TEMPLATE&
 const waLink = msg => 'https://wa.me/' + (ST.cfg.tel || '').replace(/\D/g, '') + '?text=' + encodeURIComponent(msg);
 const faz = () => ST.cfg.faz ? ST.cfg.faz + ' – ' : '';
 function eventoMudanca(l, o) {
-  const p = P(o.pasto), prazo = prazoDe(o.ent, p), s = sugestao(l);
+  const p = P(o.pasto), prazo = prazoEv(o, p), s = sugestao(l);
   return { uid: 'mud-' + o.id, t: prazo, antes: 2, tit: `${faz()}${l.nome}: mudar do ${p.nome}${s && s.p ? ' para o ' + s.p.nome : ''}`,
     txt: `${l.nome}${l.cab ? ' (' + l.cab + ' cab.)' : ''} entrou no ${p.nome} em ${fDT(o.ent)}. Prazo de ${par(p, 'ocup')} dia(s) termina em ${fDT(prazo)}.` };
 }
@@ -2310,13 +2328,14 @@ function renderAvisos() {
   if (!ST.pastos.length) { box.innerHTML = ''; return; }
   // 1) sequência de manejo: cada lote no rodízio, por ordem de prazo
   const seq = ST.lotes.map(l => ({ l, o: aberto(l.id) })).filter(x => x.o && P(x.o.pasto) && visivel(P(x.o.pasto)))
-    .map(x => { const p = P(x.o.pasto); return { ...x, p, prazo: prazoDe(x.o.ent, p), s: sugestao(x.l) }; })
+    .map(x => { const p = P(x.o.pasto); return { ...x, p, prazo: prazoEv(x.o, p), normal: prazoDe(x.o.ent, p), s: sugestao(x.l) }; })
     .sort((a, b) => a.prazo - b.prazo);
   const nVenc = seq.filter(x => t >= janela(x.prazo).lim).length;
   const itSeq = seq.map(x => {
-    const J = janela(x.prazo), atras = t >= J.lim, nv = atras ? 'alto' : t >= J.aval ? 'medio' : '';
+    const J = janela(x.prazo), atras = t >= J.lim, ad = !!x.o.adiado, nv = atras ? 'alto' : (t >= (ad ? x.prazo : J.aval)) ? 'medio' : '';
     let grande, peq;
-    if (atras) { grande = 'Mudança atrasada'; peq = `o limite era ${fDia(J.lim)}`; }
+    if (ad && !atras && t < x.prazo) { grande = 'Mantido no pasto até ' + fDia(x.prazo); peq = `decisão da avaliação em campo · o prazo normal era ${fDia(x.normal)}`; }
+    else if (atras) { grande = 'Mudança atrasada'; peq = `o limite era ${fDia(J.lim)}`; }
     else if (t >= x.prazo) { grande = 'Hoje é dia de passar o gado'; peq = folga() ? `se o pasto ainda tiver capim, pode segurar até ${fDia(J.lim)}` : ''; }
     else if (t >= J.aval) { grande = 'Dia de avaliar o pasto'; peq = `mudança prevista ${fDia(x.prazo)} · se o pasto já estiver rapado, pode passar hoje`; }
     else { grande = 'Mudar ' + fDia(x.prazo); peq = folga() ? `avaliação do pasto ${fDia(J.aval)}` : ''; }
@@ -2325,7 +2344,7 @@ function renderAvisos() {
     return `<div class="avitem lote ${nv}" data-l="${x.l.id}"><span class="dot" style="background:${x.l.cor}"></span><div class="tx">
       <div class="lnome"><b>${esc(x.l.nome)}</b><span class="t">${x.l.cab ? x.l.cab + ' cab.' : ''}</span></div>
       <div>No <b>${esc(x.p.nome)}</b> → próximo <b>${esc(dest)}</b>${x.s && x.s.espera > 0 ? ' <span class="t">(ainda recuperando)</span>' : ''}</div>
-      <div class="mudar${atras ? ' venc' : nv ? ' aval' : ''}">${grande}</div>${peq ? `<div class="t">${peq}</div>` : ''}
+      <div class="mudar${atras ? ' venc' : nv ? ' aval' : ad ? ' mant' : ''}">${ad && !atras ? PAUSA + ' ' : ''}${grande}</div>${peq ? `<div class="t">${peq}</div>` : ''}
       <div class="barra"><i style="width:${pct * 100}%;background:${atras ? 'var(--alerta)' : x.l.cor}"></i></div>
       ${formLote(x.l, x.o, x.s)}</div></div>`;
   }).join('') + ST.lotes.filter(l => !aberto(l.id) && (filtro() === '*' || regLote(l) === filtro())).map(l => {
@@ -2354,6 +2373,7 @@ function renderAvisos() {
     <div class="avcard rec"><div class="avcab">${icone('recuperando', '#C98B3A', false, 26)}Pastos em recuperação<span class="n">${nRec}</span></div>${itRec}</div>
     <div class="avcard ok"><div class="avcab">${icone('pronto', '#5CC46A', false, 26)}Recuperados<span class="n">${nOk}</span></div>${itOk}</div>`;
   box.querySelectorAll('.avitem.lote').forEach(el => { const l = Lt(el.dataset.l); if (l) ligarCardLote(l); });
+  box.querySelectorAll('[data-manter]').forEach(b => b.onclick = () => manterMaisTempo(Lt(b.dataset.manter)));
   box.querySelectorAll('[data-passar]').forEach(b => b.onclick = () => { const l = Lt(b.dataset.passar), sel = b.closest('.passar').querySelector('[data-k="dest"]'); confirmarPassagem(l, sel.value); });
   box.querySelectorAll('details[data-d]').forEach(d => d.ontoggle = () => { if (d.open) detAbertos.add(d.dataset.d); else detAbertos.delete(d.dataset.d); });
 }
@@ -2374,8 +2394,36 @@ function formLote(l, o, sug) {
     ${ops ? `<label class="pdest">${o ? 'Passar para o pasto' : 'Colocar no pasto'}<select data-k="dest">${ops}</select></label>
     ${porque ? `<div class="t">${porque}</div>` : ''}
     <button class="bpassar" data-passar="${l.id}">${icone('boi', l.cor, false, 26)}${o ? 'Passar o gado' : 'Colocar o gado'}</button>` : '<div class="t">Nenhum pasto livre nesta região.</div>'}
+    ${o ? `<button class="bmanter" data-manter="${l.id}">${PAUSA} ${o.adiado ? 'Mudar a data combinada' : 'Avaliei: manter mais tempo'}</button>` : ''}
     <input type="hidden" data-k="t" value="${toInput(horaPadrao())}">
   </div>${mais}${rec && rec.painel ? reciboHtml(l, rec) : ''}`;
+}
+// avaliação em campo: manter o gado mais tempo (nova data prevista de saída)
+function manterMaisTempo(l) {
+  const o = aberto(l.id); if (!o) return;
+  const p = P(o.pasto), normal = prazoDe(o.ent, p), atual = prazoEv(o, p), ov = $('passOv');
+  const base = Math.max(atual, naHora(now(), now() - 1));
+  const sug = [3, 7].map(d => naHora(base + d * DAY));
+  ov.innerHTML = `<div class="passcard">${icone('boi', l.cor, false, 46, true)}
+    <h3>Manter o gado mais tempo</h3>
+    <p><b>${esc(l.nome)}</b> no pasto <b>${esc(p.nome)}</b></p>
+    <p class="t">Prazo normal: ${fDia(normal)}${o.adiado ? '<br>Combinado agora: ' + fDia(o.adiado) : ''}</p>
+    <div class="mantopc">${sug.map((t, k) => `<button data-t="${t}">+${[3, 7][k]} dias<br><small>${SEM[new Date(t).getDay()]} ${fD(t)}</small></button>`).join('')}</div>
+    <label class="pdest" style="text-align:left;margin-top:10px">Ou escolha o dia da mudança<input type="date" id="mantData" value="${toDate(sug[1])}" min="${toDate(o.ent + DAY)}"></label>
+    <button class="bsim" id="mantSim" style="background:#2F6DB5;border-color:#2F6DB5">Confirmar nova data</button>
+    ${o.adiado ? '<button class="bnao" id="mantVolta">Voltar ao prazo normal</button>' : ''}
+    <button class="bnao" id="passNao">Cancelar</button></div>`;
+  ov.hidden = false;
+  ov.querySelectorAll('.mantopc button').forEach(b => b.onclick = () => { $('mantData').value = toDate(+b.dataset.t); ov.querySelectorAll('.mantopc button').forEach(x => x.classList.toggle('on', x === b)); });
+  $('passNao').onclick = () => { ov.hidden = true; };
+  if ($('mantVolta')) $('mantVolta').onclick = () => { ov.hidden = true; delete o.adiado; mudou(); toast(`${l.nome}: volta ao prazo normal (${fDia(normal)}).`); };
+  $('mantSim').onclick = () => {
+    const v = fromDate($('mantData').value);
+    if (v == null || v <= o.ent) return toast('Escolha uma data depois da entrada no pasto.');
+    ov.hidden = true;
+    if (v === normal) delete o.adiado; else o.adiado = v;
+    mudou(); toast(`${l.nome}: mudança marcada para ${fDia(v)}.`, 4000);
+  };
 }
 // confirmação dupla, com botões grandes
 function confirmarPassagem(l, destId) {
@@ -2441,9 +2489,9 @@ function opcoesDestino(l, sug, soReg) {
       if (ocupante(p.id)) return;
       const s = situacao(p), eSug = !!(sug && sug.p && sug.p.id === p.id);
       const tag = s.st === 'descanso' ? `em recuperação até ${fDT(s.fim)}` : 'pronto';
-      ops.push({ id: p.id, txt: `${p.nome} — ${eSug ? 'sugerido, ' : ''}${tag}`, sug: eSug });
+      ops.push({ id: p.id, txt: `${p.nome} — ${eSug ? 'sugerido, ' : ''}${tag}`, sug: eSug, r: prontoEm(p, ST.ev) });
     });
-    ops.sort((a, b) => b.sug - a.sug);
+    ops.sort((a, b) => (b.sug - a.sug) || (a.r - b.r));
     if (!ops.length) return '';
     const h = ops.map(x => `<option value="${x.id}"${x.sug ? ' selected' : ''}>${esc(x.txt)}</option>`).join('');
     return rs.length > 1 ? `<optgroup label="${esc(regNome(r))}">${h}</optgroup>` : h;
@@ -2463,7 +2511,7 @@ function cardLote(l) {
         <div class="row"><button class="ok" data-k="conf">Confirmar entrada no pasto</button></div></div>
       ${rec ? reciboHtml(l, rec) : ''}</div>`;
   }
-  const p = P(o.pasto), prazo = prazoDe(o.ent, p), t = now(), atras = t >= prazo, pct = Math.min(1, (t - o.ent) / (prazo - o.ent));
+  const p = P(o.pasto), prazo = prazoEv(o, p), t = now(), atras = t >= prazo, pct = Math.min(1, (t - o.ent) / (prazo - o.ent));
   const s = sugestao(l);
   let sugH = '';
   if (s && s.p) {
@@ -2886,10 +2934,10 @@ function renderMapa() {
     const s = situacao(p), l = s.lote ? Lt(s.lote) : null;
     let cor, fo = .45, linha = '#fff', txt = '', mb = '', ic = '';
     if (s.st === 'ocupado') {
-      cor = '#C0392B'; fo = .55; const atras = t > s.prazo;
-      if (atras) linha = '#ff5040';
-      ic = icone('boi', l ? l.cor : '#B4532E', atras, 24);
-      txt = `<span class="s" style="font-weight:600">${esc(l ? l.nome : '')}${l && l.cab ? ' · ' + l.cab + ' cab.' : ''}</span><span class="s">${atras ? 'prazo vencido há ' + fDur(t - s.prazo) : 'sai em ' + fDur(s.prazo - t)}</span>`;
+      cor = '#C0392B'; fo = .55; const atras = t >= janela(s.prazo).lim, mant = !!(s.ev && s.ev.adiado);
+      if (atras) linha = '#ff5040'; else if (mant) linha = '#7FB2F0';
+      ic = icone('boi', l ? l.cor : '#B4532E', atras, 24, mant && !atras);
+      txt = `<span class="s" style="font-weight:600">${esc(l ? l.nome : '')}${l && l.cab ? ' · ' + l.cab + ' cab.' : ''}</span><span class="s">${atras ? 'prazo vencido há ' + fDur(t - s.prazo) : (mant ? 'mantido até ' : 'sai ') + fDia(s.prazo)}</span>`;
       mb = `<div class="mb"><i style="width:${Math.min(100, s.pct * 100)}%;background:${atras ? '#ff5040' : '#fff'}"></i></div>`;
     } else if (s.st === 'descanso') {
       cor = corDescanso(s.pct);
@@ -2904,7 +2952,7 @@ function renderMapa() {
     bounds.push(...p.geo[0]);
     const ctr = poly.getBounds().getCenter();
     const lp = p.geo[0].length > 2 ? centroInterno(p.geo) : [ctr.lat, ctr.lng];
-    L.marker(lp, { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="mlbl">${ic}<span class="mn">${esc(p.nome)}${s.st === 'descanso' ? ' · ' + Math.round(s.pct * 100) + '%' : ''}</span></div>` }) }).addTo(gP);
+    L.marker(lp, { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="mlbl">${ic}<span class="mn">${esc(p.nome)}${s.st === 'ocupado' && s.ev && s.ev.adiado && t < s.prazo ? ' · até ' + fD(s.prazo) : ''}${s.st === 'descanso' ? ' · ' + Math.round(s.pct * 100) + '%' : ''}</span></div>` }) }).addTo(gP);
   });
   if (numerando) poly0();
   const sem = ST.pastos.filter(p => !p.geo && visivel(p)).length;
@@ -3125,7 +3173,7 @@ const fromDate = v => { if (!v) return null; const [y, m, d] = v.split('-').map(
 function linhasPlanilha(r) {
   return seqReg(r).map(p => {
     const e = ST.ev.filter(x => x.pasto === p.id).sort((a, b) => b.ent - a.ent)[0] || null;
-    const prev = e ? prazoDe(e.ent, p) : null, dias = e ? ((e.sai ?? now()) - e.ent) / DAY : null;
+    const prev = e ? prazoEv(e, p) : null, dias = e ? ((e.sai ?? now()) - e.ent) / DAY : null;
     return { p, e, prev, dias };
   });
 }
@@ -3142,7 +3190,7 @@ function renderPlanilha() {
         return `<tr data-p="${p.id}" data-e="${e ? e.id : ''}" class="${aqui ? 'aqui' : ''}">
           <td><b>${esc(p.nome)}</b>${aqui ? ' <span class="tag-aqui">gado aqui</span>' : ''}${e && e.est ? ' <span class="tag-est">estimado</span>' : ''}</td>
           <td><input type="date" data-c="ent" value="${e ? toDate(e.ent) : ''}" aria-label="Entrada no ${esc(p.nome)}"></td>
-          <td class="prev">${prev ? `${SEM[new Date(prev).getDay()]} ${fD(prev)}` : '—'}</td>
+          <td class="prev">${aqui ? `<input type="date" data-c="prev" value="${toDate(prev)}" title="Data combinada na avaliação em campo">${e.adiado ? '<div class="t">' + PAUSA + ' mantido · normal ' + fD(prazoDe(e.ent, p)) + '</div>' : ''}` : prev ? `${SEM[new Date(prev).getDay()]} ${fD(prev)}` : '—'}</td>
           <td><input type="date" data-c="sai" value="${e && e.sai != null ? toDate(e.sai) : ''}" ${e ? '' : 'disabled'} aria-label="Saída do ${esc(p.nome)}"></td>
           <td class="n${longo ? ' longo' : ''}">${dias != null ? Math.round(dias) : ''}</td>
           <td>${e ? '<button class="xg" data-x title="Apagar este pastejo">×</button>' : ''}</td></tr>`;
@@ -3171,6 +3219,12 @@ function renderPlanilha() {
       const sai = Math.min(prazoDe(v, p), o.ent);
       const cf = conflito({ lote: l.id, pasto: p.id, ent: v, sai }, null); if (cf) { toast(cf, 6000); return volta(); }
       ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent: v, sai }); mudou();
+    };
+    const ip = tr.querySelector('[data-c="prev"]');
+    if (ip) ip.onchange = ev => {
+      const v = fromDate(ev.target.value); if (v == null || v <= e.ent) { toast('A saída prevista precisa ser depois da entrada.'); return volta(); }
+      if (v === prazoDe(e.ent, p)) delete e.adiado; else e.adiado = v;
+      mudou(); toast(`Saída prevista do ${p.nome}: ${fDia(v)}.`);
     };
     tr.querySelector('[data-c="sai"]').onchange = ev => {
       if (!e) return;
@@ -3239,6 +3293,7 @@ setInterval(() => {
 
 // legendas com os ícones
 const legIco = `<span>${icone('boi', '#B4532E', false, 22)} gado no pasto (pisca rápido com prazo vencido)</span><span>${icone('recuperando', '#C98B3A', false, 22)} capim em recuperação</span><span>${icone('pronto', '#5CC46A', false, 22)} capim recuperado</span>`;
+$('legMant').innerHTML = `${icone('boi', '#2F6DB5', false, 22, true)} gado mantido após avaliação (nova data)`;
 document.querySelectorAll('.leg').forEach((el, i) => { if (i < 2) el.insertAdjacentHTML('afterbegin', legIco); });
 
 // ---------- dados embutidos no HTML (para publicar já com tudo cadastrado) ----------
@@ -3325,7 +3380,7 @@ window.addEventListener('online', statusNuvem); window.addEventListener('offline
 function ser(col, o, i) {
   if (col === 'pastos') return { nome: o.nome || '', reg: o.reg || '', ha: o.ha ?? null, ocup: o.ocup ?? null, desc: o.desc ?? null, geo: o.geo ? JSON.stringify(o.geo) : null, ord: i };
   if (col === 'lotes') return { nome: o.nome || '', cab: o.cab ?? null, cor: o.cor || '#B4532E', reg: o.reg || '' };
-  return { lote: o.lote, pasto: o.pasto, ent: o.ent, sai: o.sai ?? null, est: !!o.est };
+  return { lote: o.lote, pasto: o.pasto, ent: o.ent, sai: o.sai ?? null, est: !!o.est, adiado: o.adiado ?? null };
 }
 const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.hora, folga: +ST.cfg.folga, mig: +ST.cfg.mig || 0, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '' });
 const arrDe = col => col === 'pastos' ? ST.pastos : col === 'lotes' ? ST.lotes : ST.ev;
@@ -3358,7 +3413,7 @@ function montar() {
   const ps = NV.dados.pastos.slice().sort((a, b) => (a.ord ?? 0) - (b.ord ?? 0) || String(a.nome).localeCompare(String(b.nome), 'pt-BR', { numeric: true }));
   ST.pastos = ps.map(d => { let geo = null; try { geo = d.geo ? JSON.parse(d.geo) : null; } catch (e) { } return { id: d.id, nome: d.nome, reg: d.reg || '', ha: d.ha ?? null, ocup: d.ocup ?? null, desc: d.desc ?? null, geo }; });
   ST.lotes = NV.dados.lotes.map(d => ({ id: d.id, nome: d.nome, cab: d.cab ?? null, cor: d.cor || '#B4532E', reg: d.reg || '' }));
-  ST.ev = NV.dados.ev.map(d => { const e = { id: d.id, lote: d.lote, pasto: d.pasto, ent: d.ent, sai: d.sai ?? null }; if (d.est) e.est = true; return e; });
+  ST.ev = NV.dados.ev.map(d => { const e = { id: d.id, lote: d.lote, pasto: d.pasto, ent: d.ent, sai: d.sai ?? null }; if (d.est) e.est = true; if (d.adiado) e.adiado = d.adiado; return e; });
   ST.cfg = Object.assign(novoEstado().cfg, (NV.faz && NV.faz.cfg) || {}, { filtro }); ST.notif = notif || {};
   NV.last = { pastos: {}, lotes: {}, ev: {} };
   ['pastos', 'lotes', 'ev'].forEach(col => arrDe(col).forEach((o, i) => { NV.last[col][o.id] = JSON.stringify(ser(col, o, i)); }));
