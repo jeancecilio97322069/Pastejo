@@ -972,6 +972,10 @@ svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
 .pl td.prev{white-space:nowrap;font-weight:600;color:var(--mata)}
 .pl tr.aqui td{background:#FBEFEC}
 .pl td.longo{color:var(--alerta);font-weight:700}
+.pl .dt{font-weight:600;white-space:nowrap}
+.pl b.bom{color:var(--ok)}
+.pl .ruim{color:var(--alerta)!important;font-weight:600}
+.pl td input[type=number]{width:62px}
 .tag-aqui{white-space:nowrap;font-size:10.5px;background:#C0392B;color:#fff;border-radius:8px;padding:0 6px}
 @media (max-width:600px){.plgrid{grid-template-columns:1fr}}
 .avitem .mudar.aval{color:#9A6408}
@@ -1165,7 +1169,7 @@ svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
   <!-- HISTÓRICO -->
   <section class="tab" id="t-plan">
     <div class="row" style="margin:0 0 10px;align-items:center;justify-content:space-between">
-      <div class="hint" style="margin:0;max-width:720px">Cada linha é o último pastejo de cada pasto, na ordem em que a boiada gira. Digite a <b>entrada</b> e, quando o gado sair, a <b>saída</b>. A saída prevista é calculada sozinha (dias de pastejo, às 07:00). Colocar uma entrada mais nova que a do pasto atual passa a boiada para esse pasto.</div>
+      <div class="hint" style="margin:0;max-width:720px">Agenda do giro: começa no pasto onde a boiada está e segue a ordem de cada região. As próximas entradas e saídas são calculadas pelos dias de pastejo (às 07:00). A <b>recuperação</b> é o tempo que o pasto fica vazio até a boiada voltar, ou seja, o tempo que ela passa nos outros pastos. Em vermelho, quando fica abaixo dos dias de recuperação. O passado fica na aba Histórico.</div>
       <button id="plCsv">Baixar planilha (Excel)</button>
     </div>
     <div id="plBox" class="plgrid"></div>
@@ -2049,15 +2053,31 @@ function ordenarRegiao(r, desc) {
 // Ajuste combinado com a fazenda: 9 dias de pastejo e sentido de giro de cada boiada
 // (Paudalho A: 1→4 · Paudalho B: 4→1 · Cana: 4→1). Roda uma vez só.
 function migrar() {
-  if (+ST.cfg.mig >= 2 || !ST.pastos.length) return false;
-  ST.cfg.ocup = 9; ST.pastos.forEach(p => { p.ocup = null; });
+  const m = +ST.cfg.mig || 0;
+  if (m >= 3 || !ST.pastos.length) return false;
+  if (m < 2) { ST.cfg.ocup = 9; ST.pastos.forEach(p => { p.ocup = null; }); }
   regioes().forEach(r => {
     const n = r.toUpperCase().replace(/\s+/g, '_');
     if (n === 'PAUDALHO' || n === 'PAUDALHO_A') ordenarRegiao(r, false);
     else if (n === 'PAUDALHO_B' || n === 'CANA') ordenarRegiao(r, true);
   });
-  ST.cfg.mig = 2;
+  ST.cfg.mig = 3;
   return true;
+}
+// Corrige pastejos antigos que ficaram sem saída: um lote só pode estar em um pasto, e um pasto
+// só pode ter uma boiada. O registro aberto mais antigo é fechado quando começou o seguinte.
+function sanearAbertos() {
+  const itens = [], ord = ST.ev.slice().sort((a, b) => a.ent - b.ent);
+  const nomeL = id => (Lt(id) || {}).nome || 'lote', nomeP = id => { const p = P(id); return p ? `pasto ${p.nome}${regDe(p) ? ' (' + regDe(p) + ')' : ''}` : 'pasto'; };
+  ord.forEach(e => {
+    if (e.sai != null) return;
+    // próximo registro (depois deste) do mesmo lote ou no mesmo pasto
+    const prox = ord.find(x => x !== e && x.ent > e.ent && (x.lote === e.lote || x.pasto === e.pasto));
+    if (!prox) return;
+    e.sai = prox.ent;
+    itens.push(`Correção automática: pastejo do ${nomeL(e.lote)} no ${nomeP(e.pasto)} (entrada ${fH(e.ent)}) estava sem saída; fechado em ${fH(e.sai)}`);
+  });
+  return itens;
 }
 // histórico anterior estimado: o lote veio dos pastos anteriores da sequência, ficando os dias de ocupação em cada um
 function completarAnterior(r) {
@@ -2091,8 +2111,9 @@ const fimRecDe = (sai, p) => naHora(sai + par(p, 'desc') * DAY, sai);
 function horaPadrao() { const t = now(), h = naHora(t); return h <= t ? h : t; }
 const SEM = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
 function fDia(t) { const d = new Date(t); return `${SEM[d.getDay()]} ${z2(d.getDate())}/${z2(d.getMonth() + 1)} às ${z2(d.getHours())}:${z2(d.getMinutes())}`; }
-const aberto = (lid, evs = ST.ev) => evs.find(e => e.lote === lid && e.sai == null);
-const ocupante = (pid, evs = ST.ev) => evs.find(e => e.pasto === pid && e.sai == null);
+const maisRecente = arr => arr.reduce((m, e) => (!m || e.ent > m.ent) ? e : m, null);
+const aberto = (lid, evs = ST.ev) => maisRecente(evs.filter(e => e.lote === lid && e.sai == null));
+const ocupante = (pid, evs = ST.ev) => maisRecente(evs.filter(e => e.pasto === pid && e.sai == null));
 
 function ultimaSaida(pid, evs, t) {
   let last = null;
@@ -2101,7 +2122,7 @@ function ultimaSaida(pid, evs, t) {
 }
 // situação do pasto no instante t
 function situacao(p, evs = ST.ev, t = now()) {
-  const occ = evs.find(e => e.pasto === p.id && e.sai == null && e.ent <= t);
+  const occ = maisRecente(evs.filter(e => e.pasto === p.id && e.sai == null && e.ent <= t));
   if (occ) { const prazo = prazoEv(occ, p); return { st: 'ocupado', ev: occ, lote: occ.lote, prazo, pct: (t - occ.ent) / (prazo - occ.ent) }; }
   const last = ultimaSaida(p.id, evs, t);
   if (last) {
@@ -3170,81 +3191,81 @@ $('gRange').onchange = renderGantt;
 let abaAtual = 'painel';
 const toDate = t => { const d = new Date(t); return `${d.getFullYear()}-${z2(d.getMonth() + 1)}-${z2(d.getDate())}`; };
 const fromDate = v => { if (!v) return null; const [y, m, d] = v.split('-').map(Number); if (!y) return null; return naHora(new Date(y, m - 1, d, 12).getTime()); };
-function linhasPlanilha(r) {
-  return seqReg(r).map(p => {
-    const e = ST.ev.filter(x => x.pasto === p.id).sort((a, b) => b.ent - a.ent)[0] || null;
-    const prev = e ? prazoEv(e, p) : null, dias = e ? ((e.sai ?? now()) - e.ent) / DAY : null;
-    return { p, e, prev, dias };
-  });
+// agenda do giro: a partir do pasto onde a boiada está, segue a ordem da região
+function agendaRegiao(r) {
+  const seq = seqReg(r), n = seq.length;
+  const abertos = seq.map(p => ocupante(p.id)).filter(Boolean);
+  const occ = maisRecente(abertos);
+  if (!occ || !n) return { occ: null, seq, linhas: [] };
+  const i0 = seq.findIndex(p => p.id === occ.pasto), linhas = [];
+  let ent = occ.ent;
+  for (let k = 0; k < n; k++) {
+    const p = seq[(i0 + k) % n], sai = k === 0 ? prazoEv(occ, p) : prazoDe(ent, p);
+    const ult = k === 0 ? null : ultimaSaida(p.id, ST.ev, Infinity);
+    linhas.push({ p, ent, sai, dias: (sai - ent) / DAY, atual: k === 0, descansou: ult ? (ent - ult.sai) / DAY : null });
+    ent = sai;
+  }
+  // volta da boiada a cada pasto (próxima volta do giro) = recuperação do pasto
+  let cur = ent;
+  for (let k = 0; k < n; k++) { const L = linhas[k]; L.volta = cur; L.recup = (cur - L.sai) / DAY; cur = prazoDe(cur, L.p); }
+  return { occ, seq, linhas, outros: abertos.filter(e => e !== occ) };
 }
+const dCurta = t => `${SEM[new Date(t).getDay()]} ${fD(t)}`;
 function renderPlanilha() {
   const box = $('plBox'), rs = regioes().filter(r => filtro() === '*' || r === filtro());
   if (!rs.length) { box.innerHTML = '<div class="vazio">Cadastre os pastos em “Pastos e lotes”.</div>'; return; }
   box.innerHTML = rs.map(r => {
-    const ls = lotesDaRegiao(r), l = ls[0], q = seqReg(r);
-    const sent = regDecrescente(r) ? `${esc(q[0].nome)} → ${esc(q[q.length - 1].nome)}` : regOrdenada(r) ? `${esc(q[0].nome)} → ${esc(q[q.length - 1].nome)}` : 'ordem da tabela';
-    return `<div class="card pl"><div class="pltit"><b>${esc(regNome(r))}</b><span>${l ? `<span class="dot" style="background:${l.cor}"></span>${esc(l.nome)}${l.cab ? ' · ' + l.cab + ' cab.' : ''}` : 'sem lote'} · gira ${sent}</span></div>
-      <div class="tw"><table><thead><tr><th>Pasto</th><th>Entrada</th><th>Saída prevista</th><th>Saída</th><th style="text-align:right">Dias</th><th></th></tr></thead><tbody>
-      ${linhasPlanilha(r).map(({ p, e, prev, dias }) => {
-        const aqui = e && e.sai == null, longo = dias != null && dias > par(p, 'ocup') + folga() + .01;
-        return `<tr data-p="${p.id}" data-e="${e ? e.id : ''}" class="${aqui ? 'aqui' : ''}">
-          <td><b>${esc(p.nome)}</b>${aqui ? ' <span class="tag-aqui">gado aqui</span>' : ''}${e && e.est ? ' <span class="tag-est">estimado</span>' : ''}</td>
-          <td><input type="date" data-c="ent" value="${e ? toDate(e.ent) : ''}" aria-label="Entrada no ${esc(p.nome)}"></td>
-          <td class="prev">${aqui ? `<input type="date" data-c="prev" value="${toDate(prev)}" title="Data combinada na avaliação em campo">${e.adiado ? '<div class="t">' + PAUSA + ' mantido · normal ' + fD(prazoDe(e.ent, p)) + '</div>' : ''}` : prev ? `${SEM[new Date(prev).getDay()]} ${fD(prev)}` : '—'}</td>
-          <td><input type="date" data-c="sai" value="${e && e.sai != null ? toDate(e.sai) : ''}" ${e ? '' : 'disabled'} aria-label="Saída do ${esc(p.nome)}"></td>
-          <td class="n${longo ? ' longo' : ''}">${dias != null ? Math.round(dias) : ''}</td>
-          <td>${e ? '<button class="xg" data-x title="Apagar este pastejo">×</button>' : ''}</td></tr>`;
+    const ls = lotesDaRegiao(r), l = ls[0], q = seqReg(r), ag = agendaRegiao(r);
+    const giro = q.map(p => p.nome).join(' → ');
+    const cab = `<div class="pltit"><b>${esc(regNome(r))}</b><span>${l ? `<span class="dot" style="background:${l.cor}"></span>${esc(l.nome)}${l.cab ? ' · ' + l.cab + ' cab.' : ''}` : 'sem lote'} · gira ${esc(giro)}</span></div>`;
+    if (!ag.occ) return `<div class="card pl">${cab}<div class="hint" style="margin:0 0 6px">Sem gado nesta região. Informe em qual pasto a boiada entrou e quando:</div>
+      <div class="tw"><table><tbody>${q.map(p => `<tr data-p="${p.id}"><td><b>${esc(p.nome)}</b></td><td><input type="date" data-c="novo" aria-label="Entrada no ${esc(p.nome)}"></td></tr>`).join('')}</tbody></table></div></div>`;
+    const aviso = ag.outros.length ? `<div class="aviso" style="margin:0 0 8px">Atenção: também consta gado em ${ag.outros.map(e => `pasto <b>${esc(P(e.pasto).nome)}</b> (${esc((Lt(e.lote) || {}).nome || 'lote')}, desde ${fD(e.ent)})`).join(', ')}. Se não for verdade, apague esse pastejo na aba Histórico.</div>` : '';
+    return `<div class="card pl">${cab}${aviso}
+      <div class="tw"><table><thead><tr><th>Pasto</th><th>Entrada</th><th>Saída prevista</th><th style="text-align:right">Dias</th><th>Recuperação</th></tr></thead><tbody>
+      ${ag.linhas.map(L => {
+        const p = L.p, dr = par(p, 'desc'), curto = L.recup < dr - .01, fracoAntes = L.descansou != null && L.descansou < dr - .01;
+        const ent = L.atual ? `<input type="date" data-c="ent" value="${toDate(L.ent)}" aria-label="Entrada no ${esc(p.nome)}">`
+          : `<span class="dt">${dCurta(L.ent)}</span>${L.descansou != null ? `<div class="t${fracoAntes ? ' ruim' : ''}">descansou ${Math.round(L.descansou)} dias</div>` : ''}`;
+        const sai = L.atual ? `<input type="date" data-c="prev" value="${toDate(L.sai)}" aria-label="Saída prevista do ${esc(p.nome)}">${ag.occ.adiado ? `<div class="t">${PAUSA} mantido · normal ${fD(prazoDe(ag.occ.ent, p))}</div>` : ''}` : `<span class="dt">${dCurta(L.sai)}</span>`;
+        const dias = L.atual ? `${Math.round(L.dias)}` : `<input type="number" data-c="dias" min="1" step="1" value="${Math.round(L.dias)}" aria-label="Dias no ${esc(p.nome)}">`;
+        return `<tr data-p="${p.id}" class="${L.atual ? 'aqui' : ''}">
+          <td><b>${esc(p.nome)}</b>${L.atual ? ' <span class="tag-aqui">gado aqui</span>' : ''}</td>
+          <td>${ent}</td><td>${sai}</td><td class="n">${dias}</td>
+          <td><b class="${curto ? 'ruim' : 'bom'}">${Math.round(L.recup)} dias</b><div class="t">volta ${dCurta(L.volta)}</div></td></tr>`;
       }).join('')}</tbody></table></div></div>`;
   }).join('');
   box.querySelectorAll('tr[data-p]').forEach(tr => {
-    const p = P(tr.dataset.p), e = ST.ev.find(x => x.id === tr.dataset.e), volta = () => renderPlanilha();
-    tr.querySelector('[data-c="ent"]').onchange = ev => {
+    const p = P(tr.dataset.p), occ = ocupante(p.id), volta = () => renderPlanilha();
+    const iEnt = tr.querySelector('[data-c="ent"]'), iPrev = tr.querySelector('[data-c="prev"]'), iDias = tr.querySelector('[data-c="dias"]'), iNovo = tr.querySelector('[data-c="novo"]');
+    if (iEnt) iEnt.onchange = ev => {
       const v = fromDate(ev.target.value); if (v == null) return volta();
       if (v > now()) { toast('A entrada não pode ser no futuro.'); return volta(); }
-      if (e) { // corrige a entrada
-        if (e.sai != null && e.sai <= v) { toast('A entrada precisa ser antes da saída.'); return volta(); }
-        const cf = conflito({ lote: e.lote, pasto: p.id, ent: v, sai: e.sai }, e.id); if (cf) { toast(cf, 6000); return volta(); }
-        e.ent = v; delete e.est; return mudou();
-      }
-      const l = lotesDaRegiao(regDe(p))[0];
-      if (!l) { toast('Crie o lote desta região em “Pastos e lotes”.'); return volta(); }
-      const o = aberto(l.id);
-      if (!o || o.ent < v) { // o gado está aqui a partir dessa data (fecha o pasto anterior)
-        const cf = conflito({ lote: l.id, pasto: p.id, ent: v, sai: null }, o && o.id); if (cf) { toast(cf, 6000); return volta(); }
-        if (o) o.sai = v;
-        ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent: v, sai: null }); l.reg = regDe(p);
-        mudou(); return toast(`${l.nome} no ${p.nome} desde ${fD(v)}.`);
-      }
-      // pastejo antigo: saída prevista como saída (ajuste depois se precisar)
-      const sai = Math.min(prazoDe(v, p), o.ent);
-      const cf = conflito({ lote: l.id, pasto: p.id, ent: v, sai }, null); if (cf) { toast(cf, 6000); return volta(); }
-      ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent: v, sai }); mudou();
+      const cf = conflito({ lote: occ.lote, pasto: p.id, ent: v, sai: null }, occ.id); if (cf) { toast(cf, 6000); return volta(); }
+      occ.ent = v; delete occ.est; mudou();
     };
-    const ip = tr.querySelector('[data-c="prev"]');
-    if (ip) ip.onchange = ev => {
-      const v = fromDate(ev.target.value); if (v == null || v <= e.ent) { toast('A saída prevista precisa ser depois da entrada.'); return volta(); }
-      if (v === prazoDe(e.ent, p)) delete e.adiado; else e.adiado = v;
+    if (iPrev) iPrev.onchange = ev => {
+      const v = fromDate(ev.target.value); if (v == null || v <= occ.ent) { toast('A saída prevista precisa ser depois da entrada.'); return volta(); }
+      if (v === prazoDe(occ.ent, p)) delete occ.adiado; else occ.adiado = v;
       mudou(); toast(`Saída prevista do ${p.nome}: ${fDia(v)}.`);
     };
-    tr.querySelector('[data-c="sai"]').onchange = ev => {
-      if (!e) return;
-      const v = ev.target.value ? fromDate(ev.target.value) : null;
-      if (v != null && v > now()) { toast('A saída não pode ser no futuro. Use “Passar o gado” no dia.'); return volta(); }
-      if (v != null && v <= e.ent) { toast('A saída precisa ser depois da entrada.'); return volta(); }
-      const cf = conflito({ lote: e.lote, pasto: p.id, ent: e.ent, sai: v }, e.id); if (cf) { toast(cf, 6000); return volta(); }
-      e.sai = v; delete e.est; mudou();
+    if (iDias) iDias.onchange = ev => {
+      const v = Math.round(+ev.target.value); if (!(v >= 1)) return volta();
+      p.ocup = v === +ST.cfg.ocup ? null : v; mudou(); toast(`Pasto ${p.nome}: ${v} dias de pastejo.`);
     };
-    const x = tr.querySelector('[data-x]');
-    if (x) x.onclick = () => { if (confirm(`Apagar o pastejo do ${p.nome} (entrada ${fD(e.ent)})?`)) { ST.ev = ST.ev.filter(y => y !== e); mudou(); } };
+    if (iNovo) iNovo.onchange = ev => {
+      const v = fromDate(ev.target.value); if (v == null) return;
+      if (v > now()) { toast('A entrada não pode ser no futuro.'); return volta(); }
+      const l = lotesDaRegiao(regDe(p))[0] || ST.lotes.find(x => !aberto(x.id));
+      if (!l) { toast('Crie o lote desta região em “Pastos e lotes”.'); return volta(); }
+      confirmarMudanca(l, p.id, v);
+    };
   });
 }
-$('logBusca').oninput = () => renderLog();
 $('plCsv').onclick = () => {
-  const L = ['Região;Pasto;Entrada;Saída prevista;Saída;Dias'];
-  regioes().forEach(r => linhasPlanilha(r).forEach(({ p, e, prev, dias }) => {
-    const f = t => t != null ? new Date(t).toLocaleDateString('pt-BR') : '';
-    L.push([regNome(r), p.nome, f(e && e.ent), f(prev), f(e && e.sai), dias != null ? Math.round(dias) : ''].join(';'));
-  }));
+  const L = ['Região;Pasto;Entrada;Saída prevista;Dias;Recuperação (dias);Volta da boiada'];
+  const f = t => t != null ? new Date(t).toLocaleDateString('pt-BR') : '';
+  regioes().forEach(r => agendaRegiao(r).linhas.forEach(x => L.push([regNome(r), x.p.nome, f(x.ent), f(x.sai), Math.round(x.dias), Math.round(x.recup), f(x.volta)].join(';'))));
   baixar(new Blob(['﻿' + L.join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'planilha_pastejo.csv');
 };
 function abrirAba(t) {
@@ -3418,7 +3439,8 @@ function montar() {
   NV.last = { pastos: {}, lotes: {}, ev: {} };
   ['pastos', 'lotes', 'ev'].forEach(col => arrDe(col).forEach((o, i) => { NV.last[col][o.id] = JSON.stringify(ser(col, o, i)); }));
   NV.lastCfg = JSON.stringify(cfgNuvem());
-  if (NV.papel === 'admin' && migrar()) { sincronizar('Ajuste automático do app: 9 dias de pastejo e sentido de giro de cada boiada'); toast('Ajuste aplicado: 9 dias de pastejo e sentido de giro de cada boiada.', 6000); }
+  { const c = sanearAbertos(); if (c.length) { sincronizar(c.length === 1 ? c[0] : `Correção automática de ${c.length} pastejos sem saída`); } }
+  if (NV.papel === 'admin' && migrar()) { sincronizar('Ajuste automático do app: sentido de giro de cada boiada (Paudalho 1→2→3→4 · Paudalho B e Cana 4→3→2→1)'); toast('Ordem de giro ajustada: Paudalho 1→4 · Paudalho B e Cana 4→1.', 6000); }
   if (!LOGS.unsub) assinarLogs();
   fecharTelas(); aplicarPapel(); statusNuvem(); renderSeguro();
 }
@@ -3608,7 +3630,7 @@ $('eqCopiar').onclick = () => { const i = $('eqLinkTxt'); i.select(); try { navi
     const raw = await DB.get('estado');
     modoLocal = (await DB.get('modo')) === 'local';
     const carregar = d => { ST = Object.assign(novoEstado(), d); ST.cfg = Object.assign(novoEstado().cfg, d.cfg || {}); ST.notif = ST.notif || {}; };
-    if (raw) { carregar(JSON.parse(raw)); iniciarRegistroLocal(); if (migrar()) { registrarLocal('Ajuste automático do app: 9 dias de pastejo e sentido de giro de cada boiada'); salvar(); } }
+    if (raw) { carregar(JSON.parse(raw)); iniciarRegistroLocal(); { const c = sanearAbertos(); if (c.length) { registrarLocal(c.join(' · ')); salvar(); } } if (migrar()) { registrarLocal('Ajuste automático do app: sentido de giro de cada boiada (Paudalho 1→2→3→4 · Paudalho B e Cana 4→3→2→1)'); salvar(); } }
     else { // primeira vez neste aparelho: usa os dados que vieram dentro do arquivo, se houver
       const sd = semente(); if (sd) { carregar(sd); iniciarRegistroLocal(); salvar(); setTimeout(() => toast('Dados iniciais carregados do arquivo publicado.', 4000), 400); }
     }
