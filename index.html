@@ -1149,6 +1149,7 @@ svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
         <button id="bAddL">Adicionar lote</button>
       </div>
     </div>
+    <div id="lixoBox" class="so-admin"></div>
 
     </div>
     <div class="hint so-campo" style="margin-top:14px">O cadastro de pastos, regiões e lotes é feito pelo administrador.</div>
@@ -1854,7 +1855,7 @@ if (qs.get('agora')) { const t = new Date(qs.get('agora')).getTime(); if (isFini
 const now = () => Date.now() + offset;
 
 // ---------- estado ----------
-const novoEstado = () => ({ v: 1, cfg: { ocup: 9, desc: 7, hora: 7, folga: 1, mig: 0, tel: '', faz: '' }, pastos: [], lotes: [], ev: [], notif: {} });
+const novoEstado = () => ({ v: 1, cfg: { ocup: 9, desc: 7, hora: 7, folga: 1, mig: 0, tel: '', faz: '' }, pastos: [], lotes: [], ev: [], notif: {}, lixo: [] });
 let ST = novoEstado();
 let ultimo = null;           // { antes: ev[], recibo: {...} } para desfazer
 const recibos = {};          // por lote: resumo da última mudança confirmada nesta sessão
@@ -1902,7 +1903,7 @@ function calcularMudancas(last, cols, cfgLast) {
       ops.push(['set', col, o.id, d]); last[col][o.id] = j;
       if (col === 'pastos') {
         const nm = `${d.reg ? d.reg + ': ' : ''}pasto ${a ? a.nome : d.nome}`;
-        if (!a) { (novosP[d.reg] = novosP[d.reg] || []).push(d.nome); return; }
+        if (!a) { if (!SIL.has(o.id)) (novosP[d.reg] = novosP[d.reg] || []).push(d.nome); return; }
         if (a.nome !== d.nome) itens.push(`${nm} renomeado para ${d.nome}`);
         if (a.reg !== d.reg) itens.push(`Pasto ${d.nome} mudou da região ${a.reg || '—'} para ${d.reg || '—'}`);
         if (a.ha !== d.ha) itens.push(`${nm}: área ${a.ha ?? '—'} → ${d.ha ?? '—'} ha`);
@@ -1911,6 +1912,7 @@ function calcularMudancas(last, cols, cfgLast) {
         if (a.geo !== d.geo) itens.push(`${nm}: desenho atualizado`);
         if (a.ord !== d.ord) ordReg.add(d.reg);
       } else if (col === 'lotes') {
+        if (!a && SIL.has(o.id)) return;
         if (!a) { itens.push(`${LT(d.nome)} cadastrado${d.cab ? ' (' + d.cab + ' cab.)' : ''}`); return; }
         if (a.nome !== d.nome) itens.push(`${LT(a.nome)} renomeado para ${d.nome}`);
         if (a.cab !== d.cab) itens.push(`${LT(d.nome)}: cabeças ${a.cab ?? '—'} → ${d.cab ?? '—'}`);
@@ -1918,6 +1920,7 @@ function calcularMudancas(last, cols, cfgLast) {
         if (a.cor !== d.cor) itens.push(`${LT(d.nome)}: cor alterada`);
       } else {
         const ln = nomeLote(d.lote), pt = pastoTxt(d.pasto);
+        if (!a && (SIL.has(d.pasto) || SIL.has(d.lote))) return;
         if (!a) {
           if (d.sai == null) entradas[d.lote] = { pt, t: d.ent, txt: `${ln} entrou no ${pt} em ${fH(d.ent)}` };
           else itens.push(`Pastejo lançado: ${ln} no ${pt}, de ${fH(d.ent)} a ${fH(d.sai)}`);
@@ -1935,6 +1938,7 @@ function calcularMudancas(last, cols, cfgLast) {
       if (vistos.has(id)) return;
       const a = JSON.parse(last[col][id]);
       ops.push(['del', col, id]); delete last[col][id];
+      if (SIL.has(id) || (col === 'ev' && (SIL.has(a.pasto) || SIL.has(a.lote)))) return;
       if (col === 'pastos') itens.push(`Pasto ${a.nome}${a.reg ? ' (' + a.reg + ')' : ''} excluído`);
       else if (col === 'lotes') itens.push(`${LT(a.nome)} excluído`);
       else itens.push(`Pastejo apagado: ${nomeLote(a.lote)} no ${pastoTxt(a.pasto)} (entrada ${fH(a.ent)}${a.sai != null ? ', saída ' + fH(a.sai) : ''})`);
@@ -1948,7 +1952,7 @@ function calcularMudancas(last, cols, cfgLast) {
   });
   Object.values(saidas).forEach(s => itens.unshift(s.txt));
   Object.keys(novosP).forEach(r => itens.push(`${r || 'Sem região'}: ${novosP[r].length > 1 ? 'pastos ' + novosP[r].join(', ') + ' cadastrados' : 'pasto ' + novosP[r][0] + ' cadastrado'}`));
-  ordReg.forEach(r => { if (!novosP[r]) itens.push(`${r || 'Sem região'}: ordem do giro alterada para ${seqReg(r).map(p => p.nome).join(' → ')}`); });
+  if (!SIL.size) ordReg.forEach(r => { if (!novosP[r]) itens.push(`${r || 'Sem região'}: ordem do giro alterada para ${seqReg(r).map(p => p.nome).join(' → ')}`); });
   let cfgJ = cfgLast;
   if (cfgLast !== undefined) {
     const c = cfgNuvem(); cfgJ = JSON.stringify(c);
@@ -2604,6 +2608,7 @@ function ligarCardLote(l) {
 
 // ---------- render: configuração ----------
 function renderConfig() {
+  renderLixo();
   const ae = document.activeElement, foco = ae && ae.closest && ae.closest('#t-config') ? (ae.id || ae.dataset.f + ':' + (ae.closest('tr') || {}).dataset?.id) : null;
   $('cFaz').value = ST.cfg.faz || ''; $('cOcup').value = ST.cfg.ocup; $('cDesc').value = ST.cfg.desc; $('cFolga').value = folga(); $('cHora').value = z2(Math.floor(horaMud())) + ':' + z2(Math.round(horaMud() % 1 * 60)); $('cTel').value = ST.cfg.tel || '';
   // conta do rodízio
@@ -2718,8 +2723,8 @@ function renderConfig() {
     tr.querySelector('[data-a="del"]').onclick = () => {
       const nEv = ST.ev.filter(e => e.pasto === p.id).length;
       if (ocupante(p.id)) return toast('Tire o lote do pasto antes de excluir.');
-      if (!confirm(`Excluir ${p.nome}?${nEv ? ' O histórico dele (' + nEv + ' pastejo(s)) também será apagado.' : ''}`)) return;
-      ST.pastos.splice(i, 1); ST.ev = ST.ev.filter(e => e.pasto !== p.id); mudou();
+      if (!confirm(`Excluir o pasto ${p.nome}${p.reg ? ' (' + p.reg + ')' : ''}?\n\nEle vai para a LIXEIRA${nEv ? ' junto com o histórico (' + nEv + ' pastejo(s))' : ''} e pode ser restaurado por ${LIXO_DIAS} dias. Depois disso é apagado de vez.`)) return;
+      paraLixeira('pasto', p);
     };
   });
   // lotes
@@ -2743,8 +2748,8 @@ function renderConfig() {
       mudou();
     });
     tr.querySelector('[data-a="del"]').onclick = () => {
-      if (!confirm(`Excluir ${l.nome} e o histórico de movimentações dele?`)) return;
-      ST.lotes = ST.lotes.filter(x => x !== l); ST.ev = ST.ev.filter(e => e.lote !== l.id); delete recibos[l.id]; mudou();
+      if (!confirm(`Excluir ${l.nome}?\n\nEle vai para a LIXEIRA junto com o histórico de movimentações e pode ser restaurado por ${LIXO_DIAS} dias. Depois disso é apagado de vez.`)) return;
+      paraLixeira('lote', l);
     };
   });
   if (foco) { // devolve o foco ao campo que estava sendo editado
@@ -3409,6 +3414,91 @@ function statusNuvem() {
 }
 window.addEventListener('online', statusNuvem); window.addEventListener('offline', statusNuvem);
 
+// ---------- lixeira: pasto/lote excluído fica guardado LIXO_DIAS dias, depois some de vez ----------
+const LIXO_DIAS = 3;
+const SIL = new Set();   // ids indo/voltando da lixeira: o registro de alterações usa uma frase só
+const LIXO_OPS = [];     // gravações da lixeira que vão no mesmo lote (batch) da exclusão
+const LIXO_APAGANDO = new Set();
+function lixoLista() {
+  const o = NV.on ? Object.values((NV.faz && NV.faz.lixo) || {}) : (ST.lixo || []);
+  return o.filter(x => x && x.id).sort((a, b) => b.t - a.t);
+}
+function lixoGravar(id, item) { // item null = tira da lixeira
+  if (NV.on) LIXO_OPS.push(['lixo', id, item]);
+  else { ST.lixo = (ST.lixo || []).filter(x => x.id !== id); if (item) ST.lixo.push(item); }
+}
+const lixoRot = x => `${x.tipo === 'lote' ? (/^lote\b/i.test(x.nome) ? '' : 'Lote ') : 'Pasto '}${x.nome}${x.reg && x.tipo !== 'lote' ? ' (' + x.reg + ')' : ''}`;
+function paraLixeira(tipo, obj) {
+  const arr = tipo === 'pasto' ? ST.pastos : ST.lotes, idx = arr.indexOf(obj);
+  if (idx < 0) return;
+  const evs = ST.ev.filter(e => tipo === 'pasto' ? e.pasto === obj.id : e.lote === obj.id);
+  const item = { id: obj.id, tipo, t: now(), quem: NV.on ? (NV.user && NV.user.email) || '' : 'este aparelho', nome: obj.nome || '', reg: obj.reg || '', idx, obj: JSON.stringify(obj), ev: JSON.stringify(evs) };
+  lixoGravar(obj.id, item);
+  arr.splice(idx, 1); ST.ev = ST.ev.filter(e => !evs.includes(e));
+  if (tipo === 'lote') delete recibos[obj.id];
+  SIL.add(obj.id);
+  try { mudou(`${lixoRot(item)} foi para a lixeira${evs.length ? ' com ' + evs.length + ' pastejo(s)' : ''} — pode ser restaurado até ${fDT(item.t + LIXO_DIAS * DAY)}`); }
+  finally { SIL.delete(obj.id); }
+  toast(`${lixoRot(item)} foi para a lixeira (fim da página Pastos e lotes).`, 5000);
+}
+function restaurarLixo(id) {
+  const it = lixoLista().find(x => x.id === id); if (!it) return;
+  let obj, evs; try { obj = JSON.parse(it.obj); evs = JSON.parse(it.ev || '[]'); } catch (e) { return toast('Item da lixeira corrompido.'); }
+  const pasto = it.tipo === 'pasto', arr = pasto ? ST.pastos : ST.lotes;
+  let alvo = arr.find(x => x.id === obj.id) || arr.find(x => String(x.nome).trim().toLowerCase() === String(obj.nome).trim().toLowerCase() && (!pasto || (x.reg || '') === (obj.reg || '')));
+  if (alvo && !confirm(`Já existe ${pasto ? 'o pasto' : 'o lote'} ${alvo.nome}${pasto && alvo.reg ? ' (' + alvo.reg + ')' : ''} cadastrado de novo.\n\nDevolver o histórico da lixeira para ele (sem duplicar o cadastro)?`)) return;
+  if (alvo) evs.forEach(e => { if (pasto) e.pasto = alvo.id; else e.lote = alvo.id; });
+  else { alvo = obj; arr.splice(Math.min(it.idx ?? arr.length, arr.length), 0, obj); }
+  const ids = new Set(ST.ev.map(e => e.id));
+  // só volta o que ainda faz sentido: o outro lado (lote/pasto) existe e não é repetido
+  evs = evs.filter(e => !ids.has(e.id) && (pasto ? Lt(e.lote) : P(e.pasto)));
+  evs.sort((a, b) => a.ent - b.ent).forEach(e => { // nunca dois lotes no mesmo pasto nem um lote em dois pastos
+    if (e.sai == null) { const o = ocupante(e.pasto) || aberto(e.lote); if (o) e.sai = Math.max(e.ent, o.ent); }
+    ST.ev.push(e);
+  });
+  if (pasto) agrupar();
+  lixoGravar(id, null);
+  SIL.add(alvo.id);
+  try { mudou(`${lixoRot(it)} restaurado da lixeira${evs.length ? ' com ' + evs.length + ' pastejo(s)' : ''}`); }
+  finally { SIL.delete(alvo.id); }
+  toast(`${lixoRot(it)} restaurado${evs.length ? ' com ' + evs.length + ' pastejo(s)' : ''}.`, 5000);
+}
+function apagarLixo(lista, motivo) {
+  lista = lista.filter(x => !LIXO_APAGANDO.has(x.id)); if (!lista.length) return;
+  const frases = lista.map(x => `${lixoRot(x)} apagado de vez da lixeira (${motivo})`);
+  if (NV.on) {
+    if (NV.papel !== 'admin') return;
+    const F = FS(); lista.forEach(x => LIXO_APAGANDO.add(x.id));
+    F.updateDoc(F.doc(NV.db, 'fazendas', NV.fid), Object.fromEntries(lista.map(x => ['lixo.' + x.id, F.deleteField()])))
+      .then(() => gravarLog(frases)).catch(() => { }).finally(() => lista.forEach(x => LIXO_APAGANDO.delete(x.id)));
+  } else { const ids = new Set(lista.map(x => x.id)); ST.lixo = (ST.lixo || []).filter(x => !ids.has(x.id)); gravarLog(frases); }
+}
+function limparLixeira() { // passou do prazo: apaga de vez
+  const vencidos = lixoLista().filter(x => now() - x.t >= LIXO_DIAS * DAY);
+  if (vencidos.length) apagarLixo(vencidos, `${LIXO_DIAS} dias na lixeira`);
+}
+setInterval(limparLixeira, 30 * MIN);
+function renderLixo() {
+  const box = $('lixoBox'); if (!box) return;
+  const L = lixoLista().filter(x => !LIXO_APAGANDO.has(x.id));
+  if (!L.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<h2>Lixeira <span class="sub">o que foi excluído fica aqui ${LIXO_DIAS} dias e depois é apagado de vez</span></h2>
+    <div class="card tw"><table>
+      <thead><tr><th>Excluído</th><th style="text-align:right">Histórico</th><th>Quando / quem</th><th>Apaga de vez em</th><th></th></tr></thead>
+      <tbody>${L.map(x => { let n = 0; try { n = JSON.parse(x.ev || '[]').length; } catch (e) { }
+        const falta = x.t + LIXO_DIAS * DAY - now(), h = Math.max(0, Math.ceil(falta / HOUR));
+        return `<tr data-lx="${esc(x.id)}"><td>${x.tipo === 'lote' ? 'Lote' : 'Pasto'} <b>${esc(x.nome)}</b>${x.reg && x.tipo !== 'lote' ? ' · ' + esc(x.reg) : ''}</td>
+          <td style="text-align:right">${n} pastejo(s)</td>
+          <td>${fDT(x.t)}${x.quem ? '<br><span class="sub" style="margin:0">' + esc(x.quem) + '</span>' : ''}</td>
+          <td>${fDT(x.t + LIXO_DIAS * DAY)}<br><span class="sub" style="margin:0">${h >= 24 ? 'faltam ' + Math.floor(h / 24) + ' d ' + (h % 24) + ' h' : 'faltam ' + h + ' h'}</span></td>
+          <td style="white-space:nowrap"><button class="ok" data-a="rest">Restaurar</button> <button class="del" data-a="apagar">Apagar agora</button></td></tr>`; }).join('')}</tbody></table></div>`;
+  box.querySelectorAll('tr[data-lx]').forEach(tr => {
+    const id = tr.dataset.lx;
+    tr.querySelector('[data-a="rest"]').onclick = () => restaurarLixo(id);
+    tr.querySelector('[data-a="apagar"]').onclick = () => { const x = lixoLista().find(y => y.id === id); if (x && confirm(`Apagar ${lixoRot(x)} de vez? Não dá para desfazer.`)) { apagarLixo([x], 'apagado manualmente'); if (!NV.on) { salvar(); } render(); } };
+  });
+}
+
 // ---------- serialização (mesmo formato na ida e na volta) ----------
 function ser(col, o, i) {
   if (col === 'pastos') return { nome: o.nome || '', reg: o.reg || '', ha: o.ha ?? null, ocup: o.ocup ?? null, desc: o.desc ?? null, geo: o.geo ? JSON.stringify(o.geo) : null, ord: i };
@@ -3423,7 +3513,7 @@ function sincronizar(extra) {
   if (!NV.on || !NV.fid) return;
   const F = FS(), adm = NV.papel === 'admin';
   const r = calcularMudancas(NV.last, adm ? ['pastos', 'lotes', 'ev'] : ['ev'], adm ? NV.lastCfg : undefined);
-  const ops = r.ops; if (adm) NV.lastCfg = r.cfgJ;
+  const ops = LIXO_OPS.splice(0).concat(r.ops); if (adm) NV.lastCfg = r.cfgJ;
   if (extra) r.itens.unshift(extra);
   if (r.itens.length) F.setDoc(F.doc(F.collection(NV.db, 'fazendas', NV.fid, 'logs')), { t: Date.now(), uid: NV.user.uid, email: NV.user.email || '', itens: r.itens }).catch(() => { }); // separado: se falhar, não trava os dados
   for (let k = 0; k < ops.length; k += 400) {
@@ -3431,6 +3521,7 @@ function sincronizar(extra) {
     ops.slice(k, k + 400).forEach(op => {
       if (op[0] === 'set') b.set(F.doc(NV.db, 'fazendas', NV.fid, op[1], op[2]), op[3]);
       else if (op[0] === 'del') b.delete(F.doc(NV.db, 'fazendas', NV.fid, op[1], op[2]));
+      else if (op[0] === 'lixo') b.update(F.doc(NV.db, 'fazendas', NV.fid), { ['lixo.' + op[1]]: op[2] || F.deleteField() });
       else if (op[0] === 'log') b.set(F.doc(F.collection(NV.db, 'fazendas', NV.fid, 'logs')), op[1]);
       else b.update(F.doc(NV.db, 'fazendas', NV.fid), { cfg: op[1] });
     });
@@ -3454,6 +3545,7 @@ function montar() {
   { const c = sanearAbertos(); if (c.length) { sincronizar(c.length === 1 ? c[0] : `Correção automática de ${c.length} pastejos sem saída`); } }
   if (NV.papel === 'admin' && migrar()) { sincronizar('Ajuste automático do app: sentido de giro de cada boiada (Paudalho 1→2→3→4 · Paudalho B e Cana 4→3→2→1)'); toast('Ordem de giro ajustada: Paudalho 1→4 · Paudalho B e Cana 4→1.', 6000); }
   if (!LOGS.unsub) assinarLogs();
+  if (NV.papel === 'admin') limparLixeira();
   fecharTelas(); aplicarPapel(); statusNuvem(); renderSeguro();
 }
 const editando = () => { const a = document.activeElement; return a && /INPUT|SELECT|TEXTAREA/.test(a.tagName) && a.closest('main,.leaflet-popup'); };
@@ -3648,6 +3740,7 @@ $('eqCopiar').onclick = () => { const i = $('eqLinkTxt'); i.select(); try { navi
     }
   } catch (e) { podeSalvar = false; $('semArmaz').hidden = false; }
   if (!LOC.last) iniciarRegistroLocal();
+  if (!NV.on) { limparLixeira(); salvar(); }
   notifStatus();
   render(); checarNotif();
   // nuvem: espera o Firebase carregar (vem por <script type="module">)
@@ -3659,7 +3752,7 @@ $('eqCopiar').onclick = () => { const i = $('eqLinkTxt'); i.select(); try { navi
   }
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 })();
-window.__ST = () => ST; window.__map = () => map; window.__clique = id => cliquePasto(P(id), null);
+window.__ST = () => ST; window.__x = f => f({ ST, mudou, seqReg, regLote, ocupante, uid, now, P, DAY }); window.__map = () => map; window.__clique = id => cliquePasto(P(id), null);
 })();
 </script>
 </body>
