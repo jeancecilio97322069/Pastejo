@@ -898,6 +898,13 @@ td.gado .gin{display:flex;align-items:center;gap:4px}
 /* rótulo compacto no mapa */
 .mlbl{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;pointer-events:none}
 .mlbl .mn{font:700 12px/1 "Segoe UI",Roboto,Arial,sans-serif;color:#fff;background:rgba(20,32,26,.78);padding:2px 6px;border-radius:9px;white-space:nowrap}
+.mlbl .mn.oc{border:1.5px solid #fff;font-size:12.5px}
+#mapBox.cheia{position:fixed;inset:0;z-index:3000;height:100vh;height:100dvh;min-height:0;border-radius:0;border:none}
+body.mapcheia{overflow:hidden}
+.mpfull a{display:flex!important;align-items:center;justify-content:center;font-size:17px;cursor:pointer}
+.mpleg{display:none;background:rgba(255,255,255,.94);border-radius:8px;padding:6px 9px;font-size:11.5px;line-height:1.5;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+.mpleg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+#mapBox.cheia .mpleg{display:block}
 .mlbl .ico{box-shadow:0 0 0 2px var(--rc),0 1px 4px rgba(0,0,0,.45)}
 .mlbl .ico .sel{right:-5px;top:-5px;border-width:1.5px}
 .ttp{font-size:12.5px;line-height:1.35}
@@ -3057,12 +3064,37 @@ function setBase(i) {
   camada.on('tileerror', () => { if (base === 0 && ++errosTile > 6) setBase(1); });
   $('bBase').textContent = 'Fundo: ' + BASES[i].nome;
 }
+const FULL_ON = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4"/></svg>';
+const FULL_OFF = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 1v4H1M15 5h-4V1M11 15v-4h4M1 11h4v4"/></svg>';
+function telaCheiaMapa(on) {
+  const box = $('mapBox'), liga = on ?? !box.classList.contains('cheia');
+  box.classList.toggle('cheia', liga); document.body.classList.toggle('mapcheia', liga);
+  const a = box.querySelector('.mpfull a'); if (a) { a.innerHTML = liga ? FULL_OFF : FULL_ON; a.title = liga ? 'Sair da tela cheia' : 'Tela cheia'; }
+  try { // tela cheia de verdade onde o navegador deixa (no iPhone fica só ocupando a página toda)
+    if (liga && box.requestFullscreen && !document.fullscreenElement) box.requestFullscreen().catch(() => {});
+    else if (!liga && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  } catch (e) {}
+  setTimeout(() => map && map.invalidateSize(false), 150);
+}
 function renderMapa() {
   if (!map) {
     map = L.map('map', { maxZoom: 22 }).setView([-15.8, -50], 4);
     setBase(0); gP = L.layerGroup().addTo(map);
 
     $('bBase').onclick = () => setBase((base + 1) % BASES.length);
+    const Full = L.Control.extend({ options: { position: 'topright' }, onAdd() {
+      const d = L.DomUtil.create('div', 'leaflet-bar mpfull'), a = L.DomUtil.create('a', '', d);
+      a.href = '#'; a.title = 'Tela cheia'; a.setAttribute('role', 'button'); a.innerHTML = FULL_ON;
+      L.DomEvent.disableClickPropagation(d); L.DomEvent.on(a, 'click', e => { L.DomEvent.preventDefault(e); telaCheiaMapa(); });
+      return d; } });
+    new Full().addTo(map);
+    const Leg = L.Control.extend({ options: { position: 'bottomleft' }, onAdd() {
+      const d = L.DomUtil.create('div', 'mpleg');
+      d.innerHTML = '<div><i style="background:#C0392B"></i>com gado (boi na cor do lote)</div><div><i style="background:linear-gradient(90deg,var(--desc),#7DB35A)"></i>em recuperação</div><div><i style="background:#2F8F4E"></i>pronto</div><div><i style="background:transparent;border:2px solid #ff5040"></i>prazo vencido</div>';
+      return d; } });
+    new Leg().addTo(map);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('mapBox').classList.contains('cheia')) telaCheiaMapa(false); });
+    document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('mapBox').classList.contains('cheia')) telaCheiaMapa(false); });
   }
   map.invalidateSize(false);
   gP.clearLayers(); for (const k in polys) delete polys[k];
@@ -3091,7 +3123,7 @@ function renderMapa() {
     bounds.push(...p.geo[0]);
     const ctr = poly.getBounds().getCenter();
     const lp = p.geo[0].length > 2 ? centroInterno(p.geo) : [ctr.lat, ctr.lng];
-    L.marker(lp, { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="mlbl">${ic}<span class="mn">${esc(p.nome)}${s.st === 'ocupado' && s.ev && s.ev.adiado && t < s.prazo ? ' · até ' + fD(s.prazo) : ''}${s.st === 'descanso' ? ' · ' + Math.round(s.pct * 100) + '%' : ''}</span></div>` }) }).addTo(gP);
+    L.marker(lp, { interactive: false, keyboard: false, icon: L.divIcon({ className: '', iconSize: [0, 0], html: `<div class="mlbl">${s.st === 'ocupado' ? ic : ''}<span class="mn">${esc(p.nome)}${s.st === 'ocupado' && s.ev && s.ev.adiado && t < s.prazo ? ' · até ' + fD(s.prazo) : ''}${s.st === 'descanso' ? ' · ' + Math.round(s.pct * 100) + '%' : ''}</span></div>` }) }).addTo(gP);
   });
   if (numerando) poly0();
   const sem = ST.pastos.filter(p => !p.geo && visivel(p)).length;
