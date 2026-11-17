@@ -841,6 +841,9 @@ tr.treg td{background:#E3EADC;font-weight:700;color:var(--mata);font-size:13px}
 .rlote .dot,.gl .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
 .rlote input{width:72px;padding:3px 6px;font-size:13px}
 .rtot,.rsem{font-weight:500;color:var(--mut);font-size:12.5px}
+.tregc .rstart{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;background:#fff;border:1px solid var(--linha);border-radius:16px;padding:2px 4px 2px 10px}
+.tregc .rstart select,.tregc .rstart input{padding:3px 5px;font-size:13px}
+td.pos{white-space:nowrap}td.pos .t{font-size:11px;color:var(--mut);font-weight:600}
 .tregc .rnovo{width:96px;padding:4px 6px;font-size:13px}
 td.gado{white-space:nowrap}
 /* clima */
@@ -926,6 +929,31 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 .avcab .n{margin-left:auto;font-size:12px;font-weight:700;border-radius:10px;padding:1px 8px;background:#E3EADC;color:var(--mata)}
 .avcab .n.alto{background:var(--alerta);color:#fff}
 .avcard.seq .avcab{background:#FBF4E4}.avcard.rec .avcab{background:#F6F1E4}.avcard.ok .avcab{background:#E8F3EA}
+.cal{padding:10px 12px 12px;border-bottom:1px solid var(--linha)}
+.calnav{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.calnav b{font-size:16px;min-width:150px;text-align:center}
+.calnav button{border:1px solid var(--linha);background:#fff;border-radius:8px;padding:3px 11px;font-size:16px;cursor:pointer}
+.calnav .calhoje{margin-left:auto;font-size:13px}
+.calsem,.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.calsem div{text-align:center;font-size:11.5px;font-weight:700;color:var(--mut);padding:2px 0}
+.cdia{min-height:74px;border:1px solid var(--linha);border-radius:7px;padding:3px;background:#fff;display:flex;flex-direction:column;gap:2px;min-width:0}
+.cdia.vazio{background:transparent;border-color:transparent}
+.cdia.pass{background:#F7F7F3;opacity:.75}
+.cdia.mud{background:#FFF6DC;border-color:#E6B94A}
+.cdia.hoje{border:2px solid #D93025}
+.cnum{font-size:12px;font-weight:700;display:flex;align-items:center;gap:4px}
+.bola{display:inline-block;width:10px;height:10px;border-radius:50%;background:#D93025;flex:none}
+.cmud{display:flex;align-items:flex-start;gap:3px;font-size:10.5px;line-height:1.2;background:#fff;border:1px solid #E6B94A;border-radius:5px;padding:2px 3px;font-weight:600;word-break:break-word}
+.cmud.prev{border-style:dashed}
+.cmud span{min-width:0}.cmud em{font-style:normal}.cmud u{text-decoration:none}.cmud strong{font-weight:700}
+.cmud i{width:7px;height:7px;border-radius:50%;flex:none;margin-top:3px}
+.callg{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px;align-items:center}
+.callg span{display:inline-flex;align-items:center;gap:5px}
+.callg .lgmud{width:14px;height:10px;background:#FFF6DC;border:1px solid #E6B94A;border-radius:3px;display:inline-block}
+.callg .t{color:var(--mut)}
+.seqlotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+#pnAvisos{grid-template-columns:1fr}
+@media (max-width:600px){.cdia{min-height:58px;padding:2px}.cmud{font-size:9px;padding:1px 2px;word-break:normal}.cmud span{display:block;width:100%}.cmud em{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:8px;color:var(--mut)}.cmud u{display:none}.cmud strong{display:block;overflow-wrap:anywhere}.cmud i{display:none}.calnav b{min-width:0;flex:1}}
 .avitem{display:flex;gap:10px;align-items:flex-start;padding:9px 14px;border-bottom:1px dotted var(--linha);font-size:13.5px}
 .avitem:last-child{border-bottom:none}
 .avitem .dot{width:9px;height:9px;border-radius:50%;flex:none;margin-top:6px}
@@ -992,6 +1020,7 @@ svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
 .passcard .ico{animation:none}
 .passcard h3{margin:10px 0 6px;font-size:21px}
 .passcard p{margin:6px 0}
+.passdt{display:flex;flex-direction:column;gap:4px;margin:10px 0 4px;text-align:left}.passdt input{font-size:16px;padding:8px;border:1px solid var(--linha);border-radius:8px}
 .passrota{display:flex;align-items:center;justify-content:center;gap:12px;font-size:26px;font-weight:800;margin:12px 0;color:var(--mata)}
 .passrota span{background:#E3EADC;border-radius:10px;padding:4px 14px}
 .passrota .novo{background:#E8F3EA;color:var(--ok)}
@@ -1035,18 +1064,18 @@ svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
     <label id="fRegBox" class="freg" hidden>Região <select id="fReg"></select></label>
   </div>
   <nav class="tabs" id="tabs">
-    <button data-t="painel" class="on">Painel<span class="badge" id="bdg" hidden></span></button>
+    <button data-t="painel" class="on">Agenda<span class="badge" id="bdg" hidden></span></button>
     <button data-t="mapa">Mapa</button>
     <button data-t="linha">Linha do tempo</button>
-    <button data-t="config">Pastos e lotes</button>
-    <button data-t="plan" class="so-admin">Planilha</button>
+    <button data-t="config">Configurações</button>
+    <button data-t="plan" class="so-admin">Manejo</button>
     <button data-t="hist">Histórico</button>
     <button data-t="log" class="so-admin">Alterações</button>
   </nav>
 </header>
 
 <main>
-  <div class="banner" id="semArmaz" hidden>Este navegador não deixou salvar os dados no aparelho. Use <b>Exportar backup</b> em “Pastos e lotes” antes de fechar.</div>
+  <div class="banner" id="semArmaz" hidden>Este navegador não deixou salvar os dados no aparelho. Use <b>Exportar backup</b> em “Configurações” antes de fechar.</div>
 
   <!-- PAINEL -->
   <section class="tab on" id="t-painel">
@@ -2007,6 +2036,7 @@ function fDT(t) {
   const d = new Date(t), y = new Date(now()).getFullYear();
   return `${z2(d.getDate())}/${z2(d.getMonth() + 1)}${d.getFullYear() !== y ? '/' + d.getFullYear() : ''} ${z2(d.getHours())}:${z2(d.getMinutes())}`;
 }
+const fDAA = t => { const d = new Date(t); return `${z2(d.getDate())}/${z2(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`; };
 const fD = t => { const d = new Date(t); return `${z2(d.getDate())}/${z2(d.getMonth() + 1)}`; };
 function fDur(ms) {
   ms = Math.abs(ms);
@@ -2288,6 +2318,39 @@ function eventoRecuperacao(p, e) {
 
 // ---------- ações ----------
 function snapshot() { return JSON.stringify(ST.ev); }
+function novoLoteReg(r) {
+  const inp = document.querySelector(`.rnovo[data-reg="${CSS.escape(r)}"]`), cab = inp ? +inp.value : 0;
+  const l = { id: uid(), nome: 'Lote ' + (r || (ST.lotes.length + 1)), cab: cab > 0 ? Math.round(cab) : null, cor: LCORES[ST.lotes.length % LCORES.length], reg: r };
+  ST.lotes.push(l); return l;
+}
+// início direto: informa o pasto e o dia em que o rodízio começou; o app percorre a sequência
+// com os dias de ocupação de cada pasto, lança os pastejos já passados (estimados) e deixa o gado no pasto de hoje
+function iniciarRodizio(r, pid, t0) {
+  const seq = seqReg(r), n = seq.length, i0 = seq.findIndex(p => p.id === pid);
+  if (!n || i0 < 0) return toast('Escolha o pasto de início.');
+  if (t0 > now()) return toast('O início não pode ser no futuro.');
+  const ids = new Set(seq.map(p => p.id));
+  const afetados = ST.ev.filter(e => ids.has(e.pasto) && (e.sai == null || e.sai > t0));
+  if (afetados.length && !confirm(`${regNome(r)} já tem pastejos depois de ${fDAA(t0)}. Eles serão substituídos pelo rodízio calculado a partir desse dia. Continuar?`)) return;
+  const antes = snapshot();
+  let l = lotesDaRegiao(r)[0] || ST.lotes.find(x => !aberto(x.id) && (x.reg || '').trim() === r);
+  const lNovo = !l; if (!l) l = novoLoteReg(r);
+  // limpa o que vem depois do início na região e fecha o que estava aberto
+  ST.ev = ST.ev.filter(e => !(ids.has(e.pasto) && e.ent >= t0));
+  ST.ev.forEach(e => { if (ids.has(e.pasto) && (e.sai == null || e.sai > t0)) e.sai = t0; });
+  const ab = aberto(l.id); if (ab) { if (ab.ent >= t0) ST.ev = ST.ev.filter(e => e !== ab); else ab.sai = t0; }
+  let t = t0, i = i0, feitos = 0;
+  for (let k = 0; k < 2000; k++) {
+    const p = seq[i % n], pr = prazoDe(t, p);
+    if (pr <= now()) { ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent: t, sai: pr, est: true }); feitos++; t = pr; i++; }
+    else { ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent: t, sai: null }); break; }
+  }
+  l.reg = r; delete recibos[l.id];
+  ultimo = { antes, lote: l.id };
+  mudou();
+  const atual = P(aberto(l.id).pasto);
+  toast(`${regNome(r)}: rodízio iniciado em ${fDAA(t0)}${lNovo ? ' (lote criado)' : ''}. ${feitos} pastejo(s) passado(s) lançado(s); gado hoje no ${atual.nome}.`, 6000);
+}
 function confirmarMudanca(l, destId, t) {
   const o = aberto(l.id), dest = P(destId);
   if (!dest) return toast('Escolha o pasto de destino.');
@@ -2343,10 +2406,10 @@ function renderPainel(al) {
   const semP = !ST.pastos.length, semL = !ST.lotes.length;
   $('boasVindas').innerHTML = (semP || semL) ? `<div class="card vazio"><b>Vamos começar</b>
     <ol class="passos">
-      <li>${semP ? '<b>' : ''}Importe os pastos${semP ? '</b>' : ' ✓'} (o KMZ ou SHP que o divisor de praças exporta) ou cadastre à mão, em <i>Pastos e lotes</i>.</li>
+      <li>${semP ? '<b>' : ''}Importe os pastos${semP ? '</b>' : ' ✓'} (o KMZ ou SHP que o divisor de praças exporta) ou cadastre à mão, em <i>Configurações</i>.</li>
       <li>${semL ? '<b>' : ''}Cadastre o lote de gado${semL ? '</b>' : ' ✓'} e confira os dias de ocupação e de recuperação.</li>
-      <li>Na aba <i>Mapa</i>, coloque o lote no primeiro pasto. A partir daí o painel avisa a hora de mudar e sugere o próximo pasto.</li>
-    </ol><div class="acoes" style="justify-content:center;margin-top:14px"><button class="pri" data-ir="config">Ir para Pastos e lotes</button></div></div>` : '';
+      <li>Na aba <i>Mapa</i>, coloque o lote no primeiro pasto. A partir daí a agenda avisa a hora de mudar e sugere o próximo pasto.</li>
+    </ol><div class="acoes" style="justify-content:center;margin-top:14px"><button class="pri" data-ir="config">Ir para Configurações</button></div></div>` : '';
   $('boasVindas').querySelectorAll('[data-ir]').forEach(b => b.onclick = () => abrirAba(b.dataset.ir));
 
   renderAvisos();
@@ -2361,12 +2424,7 @@ function renderAvisos() {
   const nVenc = seq.filter(x => t >= janela(x.prazo).lim).length;
   const itSeq = seq.map(x => {
     const J = janela(x.prazo), atras = t >= J.lim, ad = !!x.o.adiado, nv = atras ? 'alto' : (t >= (ad ? x.prazo : J.aval)) ? 'medio' : '';
-    let grande, peq;
-    if (ad && !atras && t < x.prazo) { grande = 'Mantido no pasto até ' + fDia(x.prazo); peq = `decisão da avaliação em campo · o prazo normal era ${fDia(x.normal)}`; }
-    else if (atras) { grande = 'Mudança atrasada'; peq = `o limite era ${fDia(J.lim)}`; }
-    else if (t >= x.prazo) { grande = 'Hoje é dia de passar o gado'; peq = folga() ? `se o pasto ainda tiver capim, pode segurar até ${fDia(J.lim)}` : ''; }
-    else if (t >= J.aval) { grande = 'Dia de avaliar o pasto'; peq = `mudança prevista ${fDia(x.prazo)} · se o pasto já estiver rapado, pode passar hoje`; }
-    else { grande = 'Mudar ' + fDia(x.prazo); peq = folga() ? `avaliação do pasto ${fDia(J.aval)}` : ''; }
+    const grande = 'Passar ' + fDAA(x.prazo) + (atras ? ' · atrasado' : t >= x.prazo ? ' · hoje' : ''), peq = '';
     const dest = x.s && x.s.p ? x.s.p.nome : '—';
     const pct = Math.min(1, (t - x.o.ent) / (x.prazo - x.o.ent));
     return `<div class="avitem lote ${nv}" data-l="${x.l.id}"><span class="dot" style="background:${x.l.cor}"></span><div class="tx">
@@ -2382,28 +2440,58 @@ function renderAvisos() {
       <div class="lnome"><b>${esc(l.nome)}</b><span class="t">${l.cab ? l.cab + ' cab.' : ''}</span></div><div class="t">Fora do rodízio</div>
       ${formLote(l, null, prim ? { p: prim } : null)}</div></div>`;
   }).join('');
-  // 2) em recuperação e 3) recuperados, agrupados por região
-  const rs = regioes().filter(r => filtro() === '*' || r === filtro());
-  const porReg = (fn, vazio) => {
-    const h = rs.map(r => { const it = seqReg(r).map(p => ({ p, s: situacao(p, ST.ev, t) })).filter(fn.f).sort(fn.o).map(fn.h).join(''); return it ? (rs.length > 1 ? `<div class="avreg">${esc(regNome(r))}</div>` : '') + it : ''; }).join('');
-    return h || `<div class="avvazio">${vazio}</div>`;
-  };
-  const nRec = ST.pastos.filter(p => visivel(p) && situacao(p, ST.ev, t).st === 'descanso').length;
-  const nOk = ST.pastos.filter(p => visivel(p) && situacao(p, ST.ev, t).st === 'pronto').length;
-  const itRec = porReg({ f: x => x.s.st === 'descanso', o: (a, b) => a.s.fim - b.s.fim,
-    h: x => `<div class="avitem"><span class="dot" style="background:${corDescanso(x.s.pct)}"></span><div class="tx"><b>${esc(x.p.nome)}</b> · ${Math.round(x.s.pct * 100)}%
-      <div class="t">pronto ${fDia(x.s.fim)}</div><div class="barra"><i style="width:${x.s.pct * 100}%;background:${corDescanso(x.s.pct)}"></i></div></div></div>` }, 'Nenhum pasto em recuperação.');
-  const itOk = porReg({ f: x => x.s.st === 'pronto', o: (a, b) => (b.s.desde || 0) - (a.s.desde || 0),
-    h: x => { const novo = x.s.desde && t - x.s.desde < 2 * DAY; return `<div class="avitem"><span class="dot" style="background:var(--ok)"></span><div class="tx"><b>${esc(x.p.nome)}</b>${novo ? ' <span class="tag-est" style="background:#E8F3EA;color:var(--ok);border-color:#B6D8BE">novo</span>' : ''}
-      <div class="t">${x.s.desde ? 'pronto desde ' + fDT(x.s.desde) : x.s.last ? 'descansando há ' + fDur(t - x.s.last.sai) : 'ainda sem uso'}</div></div></div>`; } }, 'Nenhum pasto pronto agora.');
   box.innerHTML = `
-    <div class="avcard seq"><div class="avcab">${icone('boi', '#B4532E', false, 26)}Sequência de manejo<span class="n${nVenc ? ' alto' : ''}">${nVenc ? nVenc + ' vencida' + (nVenc > 1 ? 's' : '') : seq.length}</span></div>${itSeq || '<div class="avvazio">Nenhum lote no rodízio. Coloque um lote num pasto na aba Mapa.</div>'}</div>
-    <div class="avcard rec"><div class="avcab">${icone('recuperando', '#C98B3A', false, 26)}Pastos em recuperação<span class="n">${nRec}</span></div>${itRec}</div>
-    <div class="avcard ok"><div class="avcab">${icone('pronto', '#5CC46A', false, 26)}Recuperados<span class="n">${nOk}</span></div>${itOk}</div>`;
+    <div class="avcard seq">
+    ${calendarioHtml()}
+    <div class="seqlotes">${itSeq || '<div class="avvazio">Nenhum lote no rodízio. Coloque um lote num pasto na aba Mapa.</div>'}</div></div>`;
+  ligarCalendario(box);
   box.querySelectorAll('.avitem.lote').forEach(el => { const l = Lt(el.dataset.l); if (l) ligarCardLote(l); });
   box.querySelectorAll('[data-manter]').forEach(b => b.onclick = () => manterMaisTempo(Lt(b.dataset.manter)));
   box.querySelectorAll('[data-passar]').forEach(b => b.onclick = () => { const l = Lt(b.dataset.passar), sel = b.closest('.passar').querySelector('[data-k="dest"]'); confirmarPassagem(l, sel.value); });
   box.querySelectorAll('details[data-d]').forEach(d => d.ontoggle = () => { if (d.open) detAbertos.add(d.dataset.d); else detAbertos.delete(d.dataset.d); });
+}
+// ---------- agenda: calendário mensal das mudanças de pasto ----------
+let calRef = null; // 1º dia do mês exibido
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const diaKey = t => { const d = new Date(t); return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); };
+function calendarioHtml() {
+  const hoje = new Date(now());
+  if (!calRef) calRef = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const ini = new Date(calRef.getFullYear(), calRef.getMonth(), 1), fim = new Date(calRef.getFullYear(), calRef.getMonth() + 1, 1);
+  const t0 = now(), hojeK = diaKey(t0);
+  // mudanças: as já feitas (entradas reais) e as previstas (simulação supondo tudo no prazo)
+  const porDia = {};
+  const add = (e, prev) => {
+    const p = P(e.pasto), l = Lt(e.lote); if (!p || !l || !visivel(p)) return;
+    if (e.ent < ini.getTime() || e.ent >= fim.getTime()) return;
+    (porDia[diaKey(e.ent)] = porDia[diaKey(e.ent)] || []).push({ p, l, prev, t: e.ent });
+  };
+  ST.ev.forEach(e => { if (!e.est && e.ent != null) add(e, false); });
+  if (fim.getTime() > t0) simular(fim.getTime()).forEach(e => { if (e.prev) add(e, true); });
+  // próximas mudanças reais de cada lote (prazo atual), caso a simulação pare antes
+  const cel = [], off = ini.getDay(), nDias = new Date(fim - DAY).getDate();
+  for (let i = 0; i < off; i++) cel.push('<div class="cdia vazio"></div>');
+  for (let d = 1; d <= nDias; d++) {
+    const dt = new Date(ini.getFullYear(), ini.getMonth(), d), k = diaKey(dt.getTime());
+    const its = (porDia[k] || []).sort((a, b) => a.t - b.t);
+    const ehHoje = k === hojeK, passado = dt.getTime() + DAY <= t0;
+    const chips = its.map(x => `<div class="cmud${x.prev ? ' prev' : ''}" title="${esc(x.l.nome)}: ${esc(regNome(regDe(x.p)))} - ${esc(x.p.nome)}${x.prev ? ' (previsto)' : ''}"><i style="background:${x.l.cor}"></i><span><em>${esc(regNome(regDe(x.p)))}</em><u> - </u><strong>${esc(x.p.nome)}</strong></span></div>`).join('');
+    cel.push(`<div class="cdia${ehHoje ? ' hoje' : ''}${passado ? ' pass' : ''}${its.some(x => x.prev || x.t >= t0) ? ' mud' : ''}"><div class="cnum">${ehHoje ? '<b class="bola"></b>' : ''}${d}</div>${chips}</div>`);
+  }
+  while (cel.length % 7) cel.push('<div class="cdia vazio"></div>');
+  return `<div class="cal">
+    <div class="calnav"><button data-cal="-1" aria-label="Mês anterior">‹</button><b>${MESES[ini.getMonth()]} ${ini.getFullYear()}</b><button data-cal="1" aria-label="Próximo mês">›</button><button data-cal="0" class="calhoje">Hoje</button></div>
+    <div class="calsem">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(x => `<div>${x}</div>`).join('')}</div>
+    <div class="calgrid">${cel.join('')}</div>
+    <div class="callg"><span><b class="bola"></b> hoje</span><span><i class="lgmud"></i> mudança de pasto</span><span class="t">tracejado = previsto, supondo as mudanças no prazo</span></div>
+  </div>`;
+}
+function ligarCalendario(box) {
+  box.querySelectorAll('[data-cal]').forEach(b => b.onclick = () => {
+    const v = +b.dataset.cal, h = new Date(now());
+    calRef = v === 0 ? new Date(h.getFullYear(), h.getMonth(), 1) : new Date(calRef.getFullYear(), calRef.getMonth() + v, 1);
+    renderAvisos();
+  });
 }
 const detAbertos = new Set();
 function formLote(l, o, sug) {
@@ -2463,12 +2551,12 @@ function confirmarPassagem(l, destId) {
     <h3>${o ? 'Passar o gado?' : 'Colocar o gado?'}</h3>
     <p><b>${esc(l.nome)}</b>${l.cab ? ' · ' + l.cab + ' cab.' : ''}${reg ? '<br><span class="t">' + esc(reg) + '</span>' : ''}</p>
     <div class="passrota">${de ? `<span>${esc(de.nome)}</span><b>→</b>` : ''}<span class="novo">${esc(para.nome)}</span></div>
-    <p class="t">Vai ficar registrado ${fDia(t)}.</p>
+    <label class="passdt"><span class="t">Data da passagem (pode ser retroativa)</span><input type="datetime-local" id="passDt" value="${toInput(t)}" max="${toInput(now())}"></label>
     <button class="bsim" id="passSim">Sim, passar o gado</button>
     <button class="bnao" id="passNao">Cancelar</button></div>`;
   ov.hidden = false;
   $('passNao').onclick = () => { ov.hidden = true; };
-  $('passSim').onclick = () => { ov.hidden = true; confirmarMudanca(l, destId, t); if (recibos[l.id]) { recibos[l.id].painel = true; render(); } };
+  $('passSim').onclick = () => { const tp = fromInput($('passDt').value); if (tp == null) return toast('Informe a data da passagem.'); if (o && tp <= o.ent) return toast('A passagem precisa ser depois da entrada no pasto atual (' + fDT(o.ent) + ').', 5000); if (tp > now() + MIN) return toast('Essa data ainda não chegou.'); ov.hidden = true; confirmarMudanca(l, destId, tp); if (recibos[l.id]) { recibos[l.id].painel = true; render(); } };
 }
 function irParaLote(id) {
   abrirAba('painel'); detAbertos.add(id); render();
@@ -2623,7 +2711,8 @@ function renderConfig() {
   // pastos
   const optLotes = (r, sel) => {
     const cand = ST.lotes.filter(l => regLote(l) === r || !aberto(l.id));
-    return cand.map(l => `<option value="${l.id}"${l.id === sel ? ' selected' : ''}>${esc(l.nome)}${l.cab ? ' (' + l.cab + ' cab.)' : ''}</option>`).join('');
+    const novo = lotesDaRegiao(r).length ? '' : `<option value="__novo" selected>Novo lote (${esc(regNome(r))})</option>`;
+    return novo + cand.map(l => `<option value="${l.id}"${l.id === sel ? ' selected' : ''}>${esc(l.nome)}${l.cab ? ' (' + l.cab + ' cab.)' : ''}</option>`).join('');
   };
   const cabReg = r => {
     const ls = lotesDaRegiao(r);
@@ -2633,13 +2722,15 @@ function renderConfig() {
     const ord = seqReg(r).length > 1 ? `<span class="sent">Sentido <button class="peq${regOrdenada(r) ? ' on' : ''}" data-ordr="${esc(r)}" data-dir="asc">1 → ${esc(seqReg(r).slice().sort(cmpNome).slice(-1)[0].nome)}</button><button class="peq${regDecrescente(r) ? ' on' : ''}" data-ordr="${esc(r)}" data-dir="desc">${esc(seqReg(r).slice().sort(cmpNome).slice(-1)[0].nome)} → 1</button></span>` : '';
     const semHist = seqReg(r).filter(p => !ST.ev.some(e => e.pasto === p.id)).length;
     const comp = ls.some(l => aberto(l.id)) && semHist ? `<button class="peq" data-comp="${esc(r)}" title="Cria o histórico anterior estimado pela sequência">Completar histórico anterior</button>` : '';
-    return `<tr class="treg"><td colspan="10"><div class="tregc"><span class="rn">${esc(regNome(r))}</span>${ord}${comp}
+    const ini = seqReg(r).length ? `<span class="rstart">Início do rodízio <select data-sp="${esc(r)}" aria-label="Pasto de início">${seqReg(r).map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('')}</select><input type="date" data-sd="${esc(r)}" max="${toDate(now())}" aria-label="Dia de início"><button class="peq pri" data-start="${esc(r)}">Iniciar</button></span>` : '';
+    return `<tr class="treg"><td colspan="10"><div class="tregc"><span class="rn">${esc(regNome(r))}</span>${ord}${comp}${ini}
       ${ls.length ? chips + (ls.length > 1 ? `<span class="rtot">total ${tot} cab.</span>` : '') :
         `<span class="rsem">sem gado</span><input type="number" class="rnovo" data-reg="${esc(r)}" min="1" step="1" placeholder="cabeças" aria-label="Cabeças para o novo lote"><button class="peq" data-novo="${esc(r)}">Criar lote da região</button>`}</div></td></tr>`;
   };
-  $('tbP').innerHTML = regioes().map(r => cabReg(r) + seqReg(r).map((p, i, arr) => `<tr data-id="${p.id}">
+  const datasReg = r => { const m = {}; agendaRegiao(r).linhas.forEach(L => { m[L.p.id] = L.atual ? 'desde ' + fDAA(L.ent) : 'entra ' + fDAA(L.ent); }); return m; };
+  $('tbP').innerHTML = regioes().map(r => { const dr = datasReg(r); return cabReg(r) + seqReg(r).map((p, i, arr) => `<tr data-id="${p.id}">
     <td class="ord"><button data-a="up" ${i ? '' : 'disabled'} aria-label="Subir">▲</button><button data-a="dn" ${i < arr.length - 1 ? '' : 'disabled'} aria-label="Descer">▼</button></td>
-    <td>${i + 1}º</td>
+    <td class="pos">${i + 1}º${dr[p.id] ? `<div class="t">${dr[p.id]}</div>` : ''}</td>
     <td><input type="text" data-f="nome" value="${esc(p.nome)}"></td>
     <td><input type="text" data-f="reg" value="${esc(regDe(p))}" list="dlReg" placeholder="Região" style="min-width:100px"></td>
     <td class="n"><input type="number" data-f="ha" value="${p.ha != null ? (+p.ha).toFixed(4) : ''}" step="0.0001" min="0" style="width:96px"></td>
@@ -2651,10 +2742,15 @@ function renderConfig() {
       const ol = optLotes(regDe(p), (lotesDaRegiao(regDe(p)).find(l => !aberto(l.id) || regLote(l) === regDe(p)) || {}).id);
       const ult = ultimaSaida(p.id, ST.ev, Infinity);
       const sai = `<div class="gsub"><span>Última saída${ult && ult.est ? ' <i>(estimada)</i>' : ''}</span><div class="gin"><input type="datetime-local" data-g="saida" value="${ult ? toInput(ult.sai) : ''}" aria-label="Última saída do gado do ${esc(p.nome)}">${ult ? `<button class="xg" data-x="${ult.id}" title="Excluir este lançamento" aria-label="Excluir lançamento">×</button>` : ''}</div></div>`;
-      return sai + (ol ? `<div class="gsub"><span>Colocar lote</span><select data-g="lote" aria-label="Lote">${ol}</select><input type="datetime-local" data-g="novo" aria-label="Entrada do gado no ${esc(p.nome)}"></div>` : '');
+      return sai + (ol ? `<div class="gsub"><span>Colocar lote</span><select data-g="lote" aria-label="Lote">${ol}</select><div class="gin"><input type="datetime-local" data-g="novo" max="${toInput(now())}" aria-label="Entrada do gado no ${esc(p.nome)}"><button class="peq pri" data-ocupar>Ocupar</button></div></div>` : '');
     })()}</td>
-    <td><button class="peq del" data-a="del">Excluir</button></td></tr>`).join('')).join('');
+    <td><button class="peq del" data-a="del">Excluir</button></td></tr>`).join(''); }).join('');
   $('tbP').querySelectorAll('[data-ordr]').forEach(b => b.onclick = () => { const d = b.dataset.dir === 'desc'; ordenarRegiao(b.dataset.ordr, d); mudou(); toast(`${regNome(b.dataset.ordr)}: o gado gira ${d ? 'do maior para o menor (4 → 1)' : 'do menor para o maior (1 → 4)'}.`); });
+  $('tbP').querySelectorAll('[data-start]').forEach(b => b.onclick = () => {
+    const r = b.dataset.start, box = b.closest('.rstart'), t = fromDate(box.querySelector('[data-sd]').value), pid = box.querySelector('[data-sp]').value;
+    if (t == null) return toast('Informe o dia de início do rodízio.');
+    iniciarRodizio(r, pid, t);
+  });
   $('tbP').querySelectorAll('[data-comp]').forEach(b => b.onclick = () => {
     const r = b.dataset.comp;
     if (!regOrdenada(r) && !confirm('A sequência desta região não está em ordem crescente. O histórico vai ser montado pela ordem atual da tabela. Continuar?')) return;
@@ -2713,9 +2809,14 @@ function renderConfig() {
       ST.ev.push({ id: uid(), lote: l.id, pasto: p.id, ent, sai: t, est: true });
       mudou(); toast(`${p.nome}: saída em ${fDT(t)} registrada (entrada estimada em ${fDT(ent)}).`, 5000);
     };
-    if (gNovo) gNovo.onchange = () => { // coloca um lote no pasto a partir da data informada
-      const t = fromInput(gNovo.value), l = Lt(tr.querySelector('[data-g="lote"]').value);
-      if (t == null || !l) return;
+    const bOc = tr.querySelector('[data-ocupar]');
+    if (bOc) bOc.onclick = () => { // ocupa o pasto: lote escolhido a partir da data informada (vazio = agora; pode ser retroativa)
+      const t = gNovo.value ? fromInput(gNovo.value) : horaPadrao(), v = tr.querySelector('[data-g="lote"]').value;
+      if (t == null) return toast('Data inválida.');
+      if (t > now() + MIN) return toast('A entrada não pode ser no futuro.');
+      if (ocupante(p.id)) return toast(`${p.nome} já está ocupado.`);
+      const l = v === '__novo' ? novoLoteReg(regDe(p)) : Lt(v);
+      if (!l) return toast('Escolha o lote.');
       confirmarMudanca(l, p.id, t);
     };
     tr.querySelector('[data-a="up"]').onclick = () => { moverNaRegiao(p, posNaReg(p) - 2); mudou(); };
@@ -3230,7 +3331,7 @@ function agendaRegiao(r) {
 const dCurta = t => `${SEM[new Date(t).getDay()]} ${fD(t)}`;
 function renderPlanilha() {
   const box = $('plBox'), rs = regioes().filter(r => filtro() === '*' || r === filtro());
-  if (!rs.length) { box.innerHTML = '<div class="vazio">Cadastre os pastos em “Pastos e lotes”.</div>'; return; }
+  if (!rs.length) { box.innerHTML = '<div class="vazio">Cadastre os pastos em “Configurações”.</div>'; return; }
   box.innerHTML = rs.map(r => {
     const ls = lotesDaRegiao(r), l = ls[0], q = seqReg(r), ag = agendaRegiao(r);
     const giro = q.map(p => p.nome).join(' → ');
@@ -3274,7 +3375,7 @@ function renderPlanilha() {
       const v = fromDate(ev.target.value); if (v == null) return;
       if (v > now()) { toast('A entrada não pode ser no futuro.'); return volta(); }
       const l = lotesDaRegiao(regDe(p))[0] || ST.lotes.find(x => !aberto(x.id));
-      if (!l) { toast('Crie o lote desta região em “Pastos e lotes”.'); return volta(); }
+      if (!l) { toast('Crie o lote desta região em “Configurações”.'); return volta(); }
       confirmarMudanca(l, p.id, v);
     };
   });
@@ -3439,7 +3540,7 @@ function paraLixeira(tipo, obj) {
   SIL.add(obj.id);
   try { mudou(`${lixoRot(item)} foi para a lixeira${evs.length ? ' com ' + evs.length + ' pastejo(s)' : ''} — pode ser restaurado até ${fDT(item.t + LIXO_DIAS * DAY)}`); }
   finally { SIL.delete(obj.id); }
-  toast(`${lixoRot(item)} foi para a lixeira (fim da página Pastos e lotes).`, 5000);
+  toast(`${lixoRot(item)} foi para a lixeira (fim da página Configurações).`, 5000);
 }
 function restaurarLixo(id) {
   const it = lixoLista().find(x => x.id === id); if (!it) return;
@@ -3717,7 +3818,7 @@ $('nvGoogle').onclick = async () => {
   try { await AU().signInWithPopup(NV.auth, new (AU().GoogleAuthProvider)()); }
   catch (e) { telaLogin('login', msgErro(e)); }
 };
-$('nvLocal').onclick = () => { gravarModo(true); NV.on = false; fecharTelas(); render(); toast('Usando só neste aparelho. Para sincronizar, entre em “Pastos e lotes → Conta”.', 5000); };
+$('nvLocal').onclick = () => { gravarModo(true); NV.on = false; fecharTelas(); render(); toast('Usando só neste aparelho. Para sincronizar, entre em “Configurações → Conta”.', 5000); };
 $('nvCriar').onclick = criarFazenda;
 $('nvUsarCod').onclick = () => aceitarConvite($('nvCod').value);
 $('nvSair2').onclick = $('nvSair').onclick = async () => { if (NV.auth) await AU().signOut(NV.auth); location.reload(); };
