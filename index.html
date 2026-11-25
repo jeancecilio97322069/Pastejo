@@ -960,6 +960,7 @@ td.gado input{font-size:12.5px;padding:4px 6px;min-width:170px}
 .bola{display:inline-block;width:10px;height:10px;border-radius:50%;background:#D93025;flex:none}
 .cmud{display:flex;align-items:flex-start;gap:3px;font-size:10.5px;line-height:1.2;background:#fff;border:1px solid #E6B94A;border-radius:5px;padding:2px 3px;font-weight:600;word-break:break-word}
 .cmud.prev{border-style:dashed}
+.cmud.feito{background:#E7F3EA;border-color:#8CC29B;color:#2E5E3B}
 .cmud span{min-width:0}.cmud em{font-style:normal}.cmud u{text-decoration:none}.cmud strong{font-weight:700}
 .cmud i{width:7px;height:7px;border-radius:50%;flex:none;margin-top:3px}
 .callg{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:12px;align-items:center}
@@ -2585,15 +2586,15 @@ function calendarioHtml() {
     const dt = new Date(ini.getFullYear(), ini.getMonth(), d), k = diaKey(dt.getTime());
     const its = (porDia[k] || []).sort((a, b) => a.t - b.t);
     const ehHoje = k === hojeK, passado = dt.getTime() + DAY <= t0;
-    const chips = its.map(x => `<div class="cmud${x.prev ? ' prev' : ''}" title="${esc(regNome(regDe(x.p)))} - pasto ${esc(x.p.nome)} · ${esc(x.l.nome)}${x.prev ? ' (previsto)' : ''}"><i style="background:${x.l.cor}"></i><span><strong>${esc(regNome(regDe(x.p)))}</strong></span></div>`).join('');
-    cel.push(`<div class="cdia${ehHoje ? ' hoje' : ''}${passado ? ' pass' : ''}${its.some(x => x.prev || x.t >= t0) ? ' mud' : ''}"><div class="cnum">${ehHoje ? '<b class="bola"></b>' : ''}${d}</div>${chips}</div>`);
+    const chips = its.map(x => `<div class="cmud${x.prev ? ' prev' : ' feito'}" title="${esc(regNome(regDe(x.p)))} - pasto ${esc(x.p.nome)} · ${esc(x.l.nome)}${x.prev ? ' (previsto)' : ' (já feita)'}${x.prev ? ' (previsto)' : ''}"><i style="background:${x.l.cor}"></i><span><strong>${x.prev ? '' : '✓ '}${esc(regNome(regDe(x.p)))}</strong></span></div>`).join('');
+    cel.push(`<div class="cdia${ehHoje ? ' hoje' : ''}${passado ? ' pass' : ''}${its.some(x => x.prev) ? ' mud' : ''}"><div class="cnum">${ehHoje ? '<b class="bola"></b>' : ''}${d}</div>${chips}</div>`);
   }
   while (cel.length % 7) cel.push('<div class="cdia vazio"></div>');
   return `<div class="cal">
     <div class="calnav"><button data-cal="-1" aria-label="Mês anterior">‹</button><b>${MESES[ini.getMonth()]} ${ini.getFullYear()}</b><button data-cal="1" aria-label="Próximo mês">›</button><button data-cal="0" class="calhoje">Hoje</button></div>
     <div class="calsem">${['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(x => `<div>${x}</div>`).join('')}</div>
     <div class="calgrid">${cel.join('')}</div>
-    <div class="callg"><span><b class="bola"></b> hoje</span><span><i class="lgmud"></i> mudança de pasto</span><span class="t">tracejado = previsto, supondo as mudanças no prazo</span></div>
+    <div class="callg"><span><b class="bola"></b> hoje</span><span><i class="lgmud"></i> mudança de pasto</span><span><i class="lgmud" style="background:#E7F3EA;border-color:#8CC29B"></i> ✓ já feita</span><span class="t">tracejado = previsto, supondo as mudanças no prazo</span></div>
   </div>`;
 }
 function ligarCalendario(box) {
@@ -2618,7 +2619,7 @@ function formLote(l, o, sug) {
       <button class="bmanter" data-manter="${l.id}">${PAUSA} ${o.adiado ? 'Mudar a data combinada' : 'Avaliei: manter mais tempo'}</button>
       <div class="acoes">
       <button class="peq" data-k="ics">Lembrete na agenda</button><a class="btn peq" data-k="gcal" target="_blank" rel="noopener">Google Agenda</a>
-      <a class="btn peq" data-k="wa" target="_blank" rel="noopener">WhatsApp</a><button class="peq del" data-k="ret">Retirar do rodízio</button></div></details>` : '';
+      <a class="btn peq" data-k="wa" target="_blank" rel="noopener">WhatsApp</a><button class="peq" data-k="ren">Renomear lote</button><button class="peq del" data-k="ret">Retirar do rodízio</button></div></details>` : '';
   return `<div class="passar">
     ${ops ? `${o ? '' : `<label class="pdest">Colocar no pasto<select data-k="dest">${ops}</select></label>`}
     <button class="bpassar" data-passar="${l.id}">${icone('boi', l.cor, false, 26)}${o ? 'Passar o gado' : 'Colocar o gado'}</button>` : '<div class="t">Nenhum pasto livre nesta região.</div>'}
@@ -2783,6 +2784,13 @@ function ligarCardLote(l) {
   const q = k => c.querySelector(`[data-k="${k}"]`);
   const o = aberto(l.id);
   if (q('conf')) q('conf').onclick = () => confirmarMudanca(l, q('dest').value, fromInput(q('t').value));
+  if (q('ren')) q('ren').onclick = () => {
+    const rg = regLote(l), sug = rg ? 'Lote ' + regNome(rg) : l.nome;
+    const v = prompt(`Novo nome para o ${l.nome}:`, sug === l.nome ? l.nome : sug);
+    if (v == null || !v.trim() || v.trim() === l.nome) return;
+    if (ST.lotes.some(x => x !== l && x.nome.trim().toLowerCase() === v.trim().toLowerCase())) return toast('Já existe um lote com esse nome.');
+    l.nome = v.trim(); if (rg) l.reg = rg; mudou(); toast('Lote renomeado.');
+  };
   if (!q('t')) return;
   if (o) {
     const p = P(o.pasto), ev = eventoMudanca(l, o), s = sugestao(l);
