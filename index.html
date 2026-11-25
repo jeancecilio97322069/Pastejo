@@ -1026,6 +1026,8 @@ svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
 .eqabas summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--mata)}
 .eqabas label,.eqcvabas label{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;margin:3px 10px 0 0;white-space:nowrap}
 .eqcvabas{flex-basis:100%}.eqcvabas>span{font-size:12.5px;color:var(--mut)}
+.lreg{font-size:12px;font-weight:700;color:var(--mata);text-transform:uppercase;letter-spacing:.3px}
+.lalerta{font-size:12px;background:#FFF1E6;border:1px solid #E9A66B;border-radius:6px;padding:4px 7px;margin:3px 0;color:#7A3B0C}
 .plsent{display:inline-flex;gap:4px;align-items:center;font-size:12.5px;font-weight:600;margin-left:auto}
 .plsent .on{background:var(--mata);color:#fff;border-color:var(--mata)}
 details.pled{margin:0 0 10px;border:1px solid var(--linha);border-radius:8px;background:#fff;padding:6px 10px}
@@ -2522,16 +2524,21 @@ function renderAvisos() {
   if (!ST.pastos.length) { box.innerHTML = ''; return; }
   // 1) sequência de manejo: cada lote no rodízio, por ordem de prazo
   const seq = ST.lotes.map(l => ({ l, o: aberto(l.id) })).filter(x => x.o && P(x.o.pasto) && visivel(P(x.o.pasto)))
-    .map(x => { const p = P(x.o.pasto); return { ...x, p, prazo: prazoEv(x.o, p), normal: prazoDe(x.o.ent, p), s: sugestao(x.l) }; })
-    .sort((a, b) => a.prazo - b.prazo);
-  const nVenc = seq.filter(x => t >= janela(x.prazo).lim).length;
+    .map(x => { const p = P(x.o.pasto), prazo = prazoEv(x.o, p), sg = sugestao(x.l); return { ...x, p, prazo, normal: prazoDe(x.o.ent, p), s: sg, tp: prazo + (sg && sg.espera > 0 ? sg.espera : 0) }; })
+    .sort((a, b) => a.tp - b.tp);
+  const nVenc = seq.filter(x => t >= janela(x.tp).lim).length;
   const itSeq = seq.map(x => {
-    const J = janela(x.prazo), atras = t >= J.lim, ad = !!x.o.adiado, nv = atras ? 'alto' : (t >= (ad ? x.prazo : J.aval)) ? 'medio' : '';
-    const grande = 'Passar ' + fDAA(x.prazo) + (atras ? ' · atrasado' : t >= x.prazo ? ' · hoje' : ''), peq = '';
+    // data da passagem igual à do calendário: se o próximo pasto ainda não estiver pronto no prazo, a passagem fica para o dia em que ele fica pronto
+    const esp = x.s && x.s.espera > 0 ? x.s.espera : 0, tPass = x.prazo + esp;
+    const J = janela(tPass), atras = t >= J.lim, ad = !!x.o.adiado, nv = atras ? 'alto' : (t >= (ad ? tPass : J.aval)) ? 'medio' : '';
+    const grande = 'Passar ' + fDAA(tPass) + (atras ? ' · atrasado' : t >= tPass ? ' · hoje' : ''),
+      peq = esp ? `Prazo no pasto ${esc(x.p.nome)} era ${fDAA(x.prazo)}, mas o ${esc(x.s.p.nome)} só fica pronto ${fDAA(tPass)}. Para passar antes, use Mais opções.` : '';
     const dest = x.s && x.s.p ? x.s.p.nome : '—';
-    const pct = Math.min(1, (t - x.o.ent) / (x.prazo - x.o.ent));
+    const pct = Math.min(1, (t - x.o.ent) / (tPass - x.o.ent));
     return `<div class="avitem lote ${nv}" data-l="${x.l.id}"><span class="dot" style="background:${x.l.cor}"></span><div class="tx">
       <div class="lnome"><b>${esc(x.l.nome)}</b><span class="t">${x.l.cab ? x.l.cab + ' cab.' : ''}</span></div>
+      ${(() => { const rg = regDe(x.p), outra = regioes().find(r => r !== rg && regNome(r).length > 2 && new RegExp('(^|\\s)' + regNome(r).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i').test(x.l.nome.trim()));
+        return `<div class="lreg">${esc(regNome(rg))}</div>${outra ? `<div class="lalerta">⚠ Este lote tem nome de <b>${esc(regNome(outra))}</b>, mas está num pasto de <b>${esc(regNome(rg))}</b>. Confira em Configurações → Lotes (renomeie o lote ou corrija o pastejo).</div>` : ''}`; })()}
       <div>No <b>${esc(x.p.nome)}</b> → próximo <b>${esc(dest)}</b>${x.s && x.s.espera > 0 ? ' <span class="t">(ainda recuperando)</span>' : ''}</div>
       <div class="mudar${atras ? ' venc' : nv ? ' aval' : ad ? ' mant' : ''}">${ad && !atras ? PAUSA + ' ' : ''}${grande}</div>${peq ? `<div class="t">${peq}</div>` : ''}
       <div class="barra"><i style="width:${pct * 100}%;background:${atras ? 'var(--alerta)' : x.l.cor}"></i></div>
@@ -2578,7 +2585,7 @@ function calendarioHtml() {
     const dt = new Date(ini.getFullYear(), ini.getMonth(), d), k = diaKey(dt.getTime());
     const its = (porDia[k] || []).sort((a, b) => a.t - b.t);
     const ehHoje = k === hojeK, passado = dt.getTime() + DAY <= t0;
-    const chips = its.map(x => `<div class="cmud${x.prev ? ' prev' : ''}" title="${esc(x.l.nome)}: ${esc(regNome(regDe(x.p)))} - ${esc(x.p.nome)}${x.prev ? ' (previsto)' : ''}"><i style="background:${x.l.cor}"></i><span><strong>${esc(regNome(regDe(x.p)))}</strong></span></div>`).join('');
+    const chips = its.map(x => `<div class="cmud${x.prev ? ' prev' : ''}" title="${esc(regNome(regDe(x.p)))} - pasto ${esc(x.p.nome)} · ${esc(x.l.nome)}${x.prev ? ' (previsto)' : ''}"><i style="background:${x.l.cor}"></i><span><strong>${esc(regNome(regDe(x.p)))}</strong></span></div>`).join('');
     cel.push(`<div class="cdia${ehHoje ? ' hoje' : ''}${passado ? ' pass' : ''}${its.some(x => x.prev || x.t >= t0) ? ' mud' : ''}"><div class="cnum">${ehHoje ? '<b class="bola"></b>' : ''}${d}</div>${chips}</div>`);
   }
   while (cel.length % 7) cel.push('<div class="cdia vazio"></div>');
@@ -2814,9 +2821,11 @@ function renderConfig() {
   }).join('');
   // pastos
   const optLotes = (r, sel) => {
-    const cand = ST.lotes.filter(l => regLote(l) === r || !aberto(l.id));
-    const novo = lotesDaRegiao(r).length ? '' : `<option value="__novo" selected>Novo lote (${esc(regNome(r))})</option>`;
-    return novo + cand.map(l => `<option value="${l.id}"${l.id === sel ? ' selected' : ''}>${esc(l.nome)}${l.cab ? ' (' + l.cab + ' cab.)' : ''}</option>`).join('');
+    const op = l => `<option value="${l.id}"${l.id === sel ? ' selected' : ''}>${esc(l.nome)}${l.cab ? ' (' + l.cab + ' cab.)' : ''}</option>`;
+    const daReg = ST.lotes.filter(l => regLote(l) === r);
+    const outros = ST.lotes.filter(l => regLote(l) !== r && !aberto(l.id));
+    const novo = `<option value="__novo"${daReg.length ? '' : ' selected'}>Novo lote (${esc(regNome(r))})</option>`;
+    return daReg.map(op).join('') + novo + (outros.length ? `<optgroup label="Lote de outra região">${outros.map(op).join('')}</optgroup>` : '');
   };
   const cabReg = r => {
     const ls = lotesDaRegiao(r);
@@ -2919,7 +2928,9 @@ function renderConfig() {
       if (t == null) return toast('Data inválida.');
       if (t > now() + MIN) return toast('A entrada não pode ser no futuro.');
       if (ocupante(p.id)) return toast(`${p.nome} já está ocupado.`);
-      const l = v === '__novo' ? novoLoteReg(regDe(p)) : Lt(v);
+      const lx = v === '__novo' ? null : Lt(v);
+      if (lx && regLote(lx) && regLote(lx) !== regDe(p) && !confirm(`${lx.nome} é da região ${regNome(regLote(lx))}. Colocar ele no pasto ${p.nome} de ${regNome(regDe(p))}?`)) return;
+      const l = v === '__novo' ? novoLoteReg(regDe(p)) : lx;
       if (!l) return toast('Escolha o lote.');
       confirmarMudanca(l, p.id, t);
     };
