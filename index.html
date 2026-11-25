@@ -846,6 +846,8 @@ tr.treg td{background:#DCE6F1;font-weight:700;color:var(--mata);font-size:13px}
 .rlote{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--linha);border-radius:18px;padding:2px 4px 2px 10px;font-weight:600;color:var(--txt)}
 .rlote .dot,.gl .dot{width:10px;height:10px;border-radius:50%;display:inline-block}
 .rlote input{width:72px;padding:3px 6px;font-size:13px}
+.rlote input.rlnome{width:auto;min-width:90px;field-sizing:content;max-width:220px;font-weight:600;border-color:transparent;background:transparent}
+.rlote input.rlnome:hover,.rlote input.rlnome:focus{border-color:var(--linha);background:#fff}
 .rtot,.rsem{font-weight:500;color:var(--mut);font-size:12.5px}
 .logdesf{margin-left:auto;align-self:flex-start;flex:none;color:#2F6DB5;border-color:#9DBCE4!important;background:#fff}
 
@@ -2424,6 +2426,17 @@ function eventoRecuperacao(p, e) {
 
 // ---------- ações ----------
 function snapshot() { return JSON.stringify(ST.ev); }
+function renomearLote(l, v) {
+  v = (v || '').trim(); if (!v || v === l.nome) return false;
+  const outro = ST.lotes.find(x => x !== l && x.nome.trim().toLowerCase() === v.toLowerCase());
+  if (outro) {
+    if (aberto(outro.id)) { toast(`Já existe o ${outro.nome} com gado em pasto. Escolha outro nome.`, 5000); return false; }
+    if (!confirm(`Já existe um "${outro.nome}" sem gado (sobra antiga). Ele será renomeado para "${outro.nome} (antigo)" para liberar o nome. Continuar?`)) return false;
+    outro.nome = outro.nome + ' (antigo)';
+  }
+  const rg = regLote(l); l.nome = v; if (rg) l.reg = rg;
+  mudou(); toast('Lote renomeado para ' + v + '.'); return true;
+}
 function novoLoteReg(r) {
   const inp = document.querySelector(`.rnovo[data-reg="${CSS.escape(r)}"]`), cab = inp ? +inp.value : 0;
   const l = { id: uid(), nome: 'Lote ' + (r || (ST.lotes.length + 1)), cab: cab > 0 ? Math.round(cab) : null, cor: LCORES[ST.lotes.length % LCORES.length], reg: r };
@@ -2787,9 +2800,7 @@ function ligarCardLote(l) {
   if (q('ren')) q('ren').onclick = () => {
     const rg = regLote(l), sug = rg ? 'Lote ' + regNome(rg) : l.nome;
     const v = prompt(`Novo nome para o ${l.nome}:`, sug === l.nome ? l.nome : sug);
-    if (v == null || !v.trim() || v.trim() === l.nome) return;
-    if (ST.lotes.some(x => x !== l && x.nome.trim().toLowerCase() === v.trim().toLowerCase())) return toast('Já existe um lote com esse nome.');
-    l.nome = v.trim(); if (rg) l.reg = rg; mudou(); toast('Lote renomeado.');
+    if (v != null) renomearLote(l, v);
   };
   if (!q('t')) return;
   if (o) {
@@ -2837,7 +2848,7 @@ function renderConfig() {
   };
   const cabReg = r => {
     const ls = lotesDaRegiao(r);
-    const chips = ls.map(l => `<span class="rlote"><span class="dot" style="background:${l.cor}"></span>${esc(l.nome)}
+    const chips = ls.map(l => `<span class="rlote"><span class="dot" style="background:${l.cor}"></span><input class="rlnome" data-lnome="${l.id}" value="${esc(l.nome)}" aria-label="Nome do lote" title="Clique para renomear o lote">
       <input type="number" class="rcab" data-lote="${l.id}" value="${l.cab ?? ''}" min="0" step="1" aria-label="Cabeças do ${esc(l.nome)}"> cab.</span>`).join('');
     const tot = ls.reduce((s, l) => s + (+l.cab || 0), 0);
     const ord = seqReg(r).length > 1 ? `<span class="sent">Sentido <button class="peq${regOrdenada(r) ? ' on' : ''}" data-ordr="${esc(r)}" data-dir="asc">1 → ${esc(seqReg(r).slice().sort(cmpNome).slice(-1)[0].nome)}</button><button class="peq${regDecrescente(r) ? ' on' : ''}" data-ordr="${esc(r)}" data-dir="desc">${esc(seqReg(r).slice().sort(cmpNome).slice(-1)[0].nome)} → 1</button></span>` : '';
@@ -2879,6 +2890,7 @@ function renderConfig() {
     const n = completarAnterior(r); mudou();
     toast(n ? `${n} pastejo(s) anterior(es) estimado(s) em ${regNome(r)}.` : 'Nada para completar: os pastos anteriores já têm histórico.', 5000);
   });
+  $('tbP').querySelectorAll('[data-lnome]').forEach(inp => inp.onchange = () => { const l = Lt(inp.dataset.lnome); if (!l) return; if (!renomearLote(l, inp.value)) inp.value = l.nome; });
   $('tbP').querySelectorAll('.rcab').forEach(inp => inp.onchange = () => { const l = Lt(inp.dataset.lote); const v = inp.value.trim(); l.cab = v === '' ? null : Math.max(0, Math.round(+v)); mudou(); });
   $('tbP').querySelectorAll('[data-novo]').forEach(b => b.onclick = () => {
     const r = b.dataset.novo, cab = +b.parentNode.querySelector('.rnovo').value;
