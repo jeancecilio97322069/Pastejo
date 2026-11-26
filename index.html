@@ -1031,6 +1031,10 @@ svg.pausa{width:.85em;height:.85em;vertical-align:-.05em;display:inline-block}
 .eqcvabas{flex-basis:100%}.eqcvabas>span{font-size:12.5px;color:var(--mut)}
 .lreg{font-size:12px;font-weight:700;color:var(--mata);text-transform:uppercase;letter-spacing:.3px}
 .lalerta{font-size:12px;background:#FFF1E6;border:1px solid #E9A66B;border-radius:6px;padding:4px 7px;margin:3px 0;color:#7A3B0C}
+.pausadas{padding:8px 12px 0;display:flex;flex-direction:column;gap:6px}
+.pausada{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:space-between;background:#EEF2F7;border:1px dashed #8AA6C4;border-radius:8px;padding:7px 10px;font-size:13.5px}
+.passcard select{font-size:16px;padding:8px;border:1px solid var(--linha);border-radius:8px}
+.pltit [data-pausar],.pltit [data-retomar]{margin-left:8px}
 .plsent{display:inline-flex;gap:4px;align-items:center;font-size:12.5px;font-weight:600;margin-left:auto}
 .plsent .on{background:var(--mata);color:#fff;border-color:var(--mata)}
 details.pled{margin:0 0 10px;border:1px solid var(--linha);border-radius:8px;background:#fff;padding:6px 10px}
@@ -2238,6 +2242,14 @@ const folga = () => { const f = +ST.cfg.folga; return isFinite(f) && f >= 0 ? f 
 // janela: avaliação visual (prazo - folga) · mudança prevista (prazo) · limite para segurar (prazo + folga)
 const janela = prazo => ({ aval: prazo - folga() * DAY, prazo, lim: prazo + folga() * DAY });
 const PAUSA = '<svg class="pausa" viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.6" height="8" rx=".6" fill="currentColor"/><rect x="5.9" y="1" width="2.6" height="8" rx=".6" fill="currentColor"/></svg>';
+// data em que o gado passa: a data informada no Manejo/"manter mais tempo" vale como está;
+// sem ela, o prazo normal — empurrado até o próximo pasto ficar pronto
+function dataPassagem(o, evs = ST.ev, t = now()) {
+  const p = P(o.pasto); if (!p) return null;
+  const pr = prazoEv(o, p); if (o.adiado) return pr;
+  const l = Lt(o.lote), sg = l ? sugestao(l, evs, Math.max(pr, t), null) : null;
+  return pr + (sg && sg.espera > 0 ? sg.espera : 0);
+}
 const prazoEv = (e, p) => (e && e.adiado) ? e.adiado : prazoDe(e.ent, p); // nova data decidida no campo vale no lugar do prazo normal
 const fimRecDe = (sai, p) => naHora(sai + par(p, 'desc') * DAY, sai);
 function horaPadrao() { const t = now(), h = naHora(t); return h <= t ? h : t; }
@@ -2326,7 +2338,7 @@ function simular(ate) {
     const tm = Math.max(prazoMin, t0); if (tm > ate) break;
     const s = sugestao(alvo, evs, tm, null);
     if (!s || !s.p) break;
-    const tMov = tm + (s.espera || 0); if (tMov > ate) break;
+    const tMov = ab.adiado ? tm : tm + (s.espera || 0); if (tMov > ate) break;
     ab.sai = tMov; ab.saiPrev = true;
     evs.push({ id: 'prev' + it, lote: alvo.id, pasto: s.p.id, ent: tMov, sai: null, prev: true });
   }
@@ -2437,6 +2449,44 @@ function renomearLote(l, v) {
   const rg = regLote(l); l.nome = v; if (rg) l.reg = rg;
   mudou(); toast('Lote renomeado para ' + v + '.'); return true;
 }
+const pausaDe = r => { const p = (ST.cfg.pausa || {})[r]; return p && !seqReg(r).some(x => ocupante(x.id)) ? p : null; };
+function janelaData(tit, txt, botao, extra, ok) { // janela simples com data/hora (pode ser retroativa)
+  const ov = $('passOv');
+  ov.innerHTML = `<div class="passcard"><h3>${tit}</h3><p>${txt}</p>${extra || ''}
+    <label class="passdt"><span class="t">Data e hora (pode ser retroativa)</span><input type="datetime-local" id="jdDt" value="${toInput(horaPadrao())}" max="${toInput(now())}"></label>
+    <button class="bsim" id="jdSim">${botao}</button><button class="bnao" id="jdNao">Cancelar</button></div>`;
+  ov.hidden = false;
+  $('jdNao').onclick = () => { ov.hidden = true; };
+  $('jdSim').onclick = () => { const t = fromInput($('jdDt').value); if (t == null) return toast('Informe a data.'); if (t > now() + MIN) return toast('Essa data ainda não chegou.'); if (ok(t, ov) !== false) ov.hidden = true; };
+}
+function pausarRegiao(r) {
+  const abertos = seqReg(r).map(p => ocupante(p.id)).filter(Boolean);
+  if (!abertos.length) return toast('Não há gado nesta região.');
+  janelaData(`Pausar a rotação de ${esc(regNome(r))}?`, `Todo o gado sai dos pastos (${abertos.map(o => esc(P(o.pasto).nome)).join(', ')}) e todos os pastos entram em recuperação. Quando colocar o gado de novo, a contagem de pastejo e recuperação recomeça.`, 'Pausar rotação', '', t => {
+    const errado = abertos.find(o => t <= o.ent); if (errado) { toast(`A pausa precisa ser depois da entrada no pasto ${P(errado.pasto).nome} (${fDT(errado.ent)}).`, 5000); return false; }
+    ultimo = { antes: snapshot(), lote: abertos[0].lote };
+    abertos.forEach(o => { o.sai = t; delete recibos[o.lote]; const l = Lt(o.lote); if (l) l.reg = r; });
+    ST.cfg.pausa = Object.assign({}, ST.cfg.pausa || {}, { [r]: t });
+    mudou(`${regNome(r)}: rotação pausada em ${fDT(t)} (gado retirado)`);
+    toast(`${regNome(r)}: rotação pausada. Os pastos estão em recuperação.`, 5000);
+  });
+}
+function retomarRegiao(r) {
+  const q = seqReg(r); if (!q.length) return;
+  const st = q.map(p => ({ p, s: situacao(p) }));
+  const melhor = st.slice().sort((a, b) => (b.s.st === 'pronto') - (a.s.st === 'pronto') || (b.s.pct ?? 1) - (a.s.pct ?? 1))[0];
+  const lotes = ST.lotes.filter(l => !aberto(l.id) && regLote(l) === r).concat(ST.lotes.filter(l => !aberto(l.id) && regLote(l) !== r));
+  const opP = q.map(({ id, nome }) => `<option value="${id}"${id === melhor.p.id ? ' selected' : ''}>${esc(nome)}</option>`).join('');
+  const opL = lotes.map(l => `<option value="${l.id}">${esc(l.nome)}</option>`).join('') + `<option value="__novo"${lotes.length ? '' : ' selected'}>Novo lote (${esc(regNome(r))})</option>`;
+  janelaData(`Retomar a rotação de ${esc(regNome(r))}`, 'Escolha o pasto em que o gado entrou e quando.', 'Colocar o gado',
+    `<label class="passdt"><span class="t">Pasto</span><select id="jdP">${opP}</select></label><label class="passdt"><span class="t">Lote</span><select id="jdL">${opL}</select></label>`, t => {
+      const pid = $('jdP').value, lv = $('jdL').value, pz = (ST.cfg.pausa || {})[r];
+      if (pz && t < pz) { toast(`A entrada precisa ser depois da pausa (${fDT(pz)}).`, 5000); return false; }
+      const l = lv === '__novo' ? novoLoteReg(r) : Lt(lv); if (!l) return false;
+      if (ST.cfg.pausa) { ST.cfg.pausa = Object.assign({}, ST.cfg.pausa); delete ST.cfg.pausa[r]; }
+      confirmarMudanca(l, pid, t);
+    });
+}
 function novoLoteReg(r) {
   const inp = document.querySelector(`.rnovo[data-reg="${CSS.escape(r)}"]`), cab = inp ? +inp.value : 0;
   const l = { id: uid(), nome: 'Lote ' + (r || (ST.lotes.length + 1)), cab: cab > 0 ? Math.round(cab) : null, cor: LCORES[ST.lotes.length % LCORES.length], reg: r };
@@ -2538,15 +2588,15 @@ function renderAvisos() {
   if (!ST.pastos.length) { box.innerHTML = ''; return; }
   // 1) sequência de manejo: cada lote no rodízio, por ordem de prazo
   const seq = ST.lotes.map(l => ({ l, o: aberto(l.id) })).filter(x => x.o && P(x.o.pasto) && visivel(P(x.o.pasto)))
-    .map(x => { const p = P(x.o.pasto), prazo = prazoEv(x.o, p), sg = sugestao(x.l); return { ...x, p, prazo, normal: prazoDe(x.o.ent, p), s: sg, tp: prazo + (sg && sg.espera > 0 ? sg.espera : 0) }; })
+    .map(x => { const p = P(x.o.pasto), prazo = prazoEv(x.o, p), sg = sugestao(x.l); return { ...x, p, prazo, normal: prazoDe(x.o.ent, p), s: sg, tp: dataPassagem(x.o) }; })
     .sort((a, b) => a.tp - b.tp);
   const nVenc = seq.filter(x => t >= janela(x.tp).lim).length;
   const itSeq = seq.map(x => {
     // data da passagem igual à do calendário: se o próximo pasto ainda não estiver pronto no prazo, a passagem fica para o dia em que ele fica pronto
-    const esp = x.s && x.s.espera > 0 ? x.s.espera : 0, tPass = x.prazo + esp;
+    const tPass = x.tp, esp = tPass - x.prazo;
     const J = janela(tPass), atras = t >= J.lim, ad = !!x.o.adiado, nv = atras ? 'alto' : (t >= (ad ? tPass : J.aval)) ? 'medio' : '';
     const grande = 'Passar ' + fDAA(tPass) + (atras ? ' · atrasado' : t >= tPass ? ' · hoje' : ''),
-      peq = esp ? `Prazo no pasto ${esc(x.p.nome)} era ${fDAA(x.prazo)}, mas o ${esc(x.s.p.nome)} só fica pronto ${fDAA(tPass)}. Para passar antes, use Mais opções.` : '';
+      peq = esp > 0 && x.s && x.s.p ? `Prazo no pasto ${esc(x.p.nome)} era ${fDAA(x.prazo)}, mas o ${esc(x.s.p.nome)} só fica pronto ${fDAA(tPass)}. Para passar antes, use Mais opções.` : '';
     const dest = x.s && x.s.p ? x.s.p.nome : '—';
     const pct = Math.min(1, (t - x.o.ent) / (tPass - x.o.ent));
     return `<div class="avitem lote ${nv}" data-l="${x.l.id}"><span class="dot" style="background:${x.l.cor}"></span><div class="tx">
@@ -2567,8 +2617,10 @@ function renderAvisos() {
   box.innerHTML = `
     <div class="avcard seq">
     ${calendarioHtml()}
+    ${(() => { const ps = regioes().filter(r => (filtro() === '*' || r === filtro()) && pausaDe(r)); return ps.length ? `<div class="pausadas">${ps.map(r => `<div class="pausada"><span>⏸ <b>${esc(regNome(r))}</b> · rotação pausada desde ${fDT(pausaDe(r))} · pastos em recuperação</span><button class="peq pri" data-retomar="${esc(r)}">Retomar rotação</button></div>`).join('')}</div>` : ''; })()}
     <div class="seqlotes">${itSeq || '<div class="avvazio">Nenhum lote no rodízio. Coloque um lote num pasto na aba Mapa.</div>'}</div></div>`;
   ligarCalendario(box);
+  box.querySelectorAll('[data-retomar]').forEach(b => b.onclick = () => retomarRegiao(b.dataset.retomar));
   box.querySelectorAll('.avitem.lote').forEach(el => { const l = Lt(el.dataset.l); if (l) ligarCardLote(l); });
   box.querySelectorAll('[data-manter]').forEach(b => b.onclick = () => manterMaisTempo(Lt(b.dataset.manter)));
   box.querySelectorAll('[data-passar]').forEach(b => b.onclick = () => { const l = Lt(b.dataset.passar), sel = b.closest('.avitem').querySelector('[data-k="dest"]'); confirmarPassagem(l, sel ? sel.value : ''); });
@@ -2632,7 +2684,7 @@ function formLote(l, o, sug) {
       <button class="bmanter" data-manter="${l.id}">${PAUSA} ${o.adiado ? 'Mudar a data combinada' : 'Avaliei: manter mais tempo'}</button>
       <div class="acoes">
       <button class="peq" data-k="ics">Lembrete na agenda</button><a class="btn peq" data-k="gcal" target="_blank" rel="noopener">Google Agenda</a>
-      <a class="btn peq" data-k="wa" target="_blank" rel="noopener">WhatsApp</a><button class="peq" data-k="ren">Renomear lote</button><button class="peq del" data-k="ret">Retirar do rodízio</button></div></details>` : '';
+      <a class="btn peq" data-k="wa" target="_blank" rel="noopener">WhatsApp</a><button class="peq" data-k="ren">Renomear lote</button><button class="peq" data-k="pausa">⏸ Pausar rotação da região</button><button class="peq del" data-k="ret">Retirar do rodízio</button></div></details>` : '';
   return `<div class="passar">
     ${ops ? `${o ? '' : `<label class="pdest">Colocar no pasto<select data-k="dest">${ops}</select></label>`}
     <button class="bpassar" data-passar="${l.id}">${icone('boi', l.cor, false, 26)}${o ? 'Passar o gado' : 'Colocar o gado'}</button>` : '<div class="t">Nenhum pasto livre nesta região.</div>'}
@@ -2670,7 +2722,7 @@ function manterMaisTempo(l) {
 function confirmarPassagem(l, destId) {
   const o = aberto(l.id), de = o ? P(o.pasto) : null, para = P(destId);
   if (!para) return toast('Escolha o pasto.');
-  const t = horaPadrao(), reg = regDe(para);
+  const tc = o ? dataPassagem(o) : null, t = tc != null && tc <= now() && tc > o.ent ? tc : horaPadrao(), reg = regDe(para);
   const ov = $('passOv');
   ov.innerHTML = `<div class="passcard">${icone('boi', l.cor, false, 46)}
     <h3>${o ? 'Passar o gado?' : 'Colocar o gado?'}</h3>
@@ -2797,6 +2849,7 @@ function ligarCardLote(l) {
   const q = k => c.querySelector(`[data-k="${k}"]`);
   const o = aberto(l.id);
   if (q('conf')) q('conf').onclick = () => confirmarMudanca(l, q('dest').value, fromInput(q('t').value));
+  if (q('pausa')) q('pausa').onclick = () => { const o = aberto(l.id); if (o) pausarRegiao(regDe(P(o.pasto))); };
   if (q('ren')) q('ren').onclick = () => {
     const rg = regLote(l), sug = rg ? 'Lote ' + regNome(rg) : l.nome;
     const v = prompt(`Novo nome para o ${l.nome}:`, sug === l.nome ? l.nome : sug);
@@ -3461,7 +3514,7 @@ function agendaRegiao(r) {
   const i0 = seq.findIndex(p => p.id === occ.pasto), linhas = [];
   let ent = occ.ent;
   for (let k = 0; k < n; k++) {
-    const p = seq[(i0 + k) % n], sai = k === 0 ? prazoEv(occ, p) : prazoDe(ent, p);
+    const p = seq[(i0 + k) % n], sai = k === 0 ? dataPassagem(occ) : prazoDe(ent, p);
     const ult = k === 0 ? null : ultimaSaida(p.id, ST.ev, Infinity);
     linhas.push({ p, ent, sai, dias: (sai - ent) / DAY, atual: k === 0, descansou: ult ? (ent - ult.sai) / DAY : null });
     ent = sai;
@@ -3489,8 +3542,9 @@ function renderPlanilha() {
         <td><input data-pf="ocup" type="number" step="0.25" min="0.25" value="${p.ocup ?? ''}" placeholder="${ST.cfg.ocup}" aria-label="Dias no pasto"></td>
         <td><input data-pf="desc" type="number" step="1" min="1" value="${p.desc ?? ''}" placeholder="${ST.cfg.desc}" aria-label="Dias de recuperação"></td></tr>`).join('')}
       </tbody></table></div><div class="hint">Vazio = usa o padrão da fazenda (${ST.cfg.ocup} dias no pasto, ${ST.cfg.desc} de recuperação).</div></details>`;
-    const cab = `<div class="pltit"><b>${esc(regNome(r))}</b><span>${l ? `<span class="dot" style="background:${l.cor}"></span>${esc(l.nome)}${l.cab ? ' · ' + l.cab + ' cab.' : ''}` : 'sem lote'} · gira ${esc(giro)}</span>${sentido}</div>${ed}`;
-    if (!ag.occ) return `<div class="card pl">${cab}<div class="hint" style="margin:0 0 6px">Sem gado nesta região. Informe em qual pasto a boiada entrou e quando:</div>
+    const pz = pausaDe(r), bPausa = ag.occ ? `<button class="peq" data-pausar="${esc(r)}">⏸ Pausar rotação</button>` : pz ? `<button class="peq pri" data-retomar="${esc(r)}">Retomar rotação</button>` : '';
+    const cab = `<div class="pltit"><b>${esc(regNome(r))}</b>${bPausa}<span>${l ? `<span class="dot" style="background:${l.cor}"></span>${esc(l.nome)}${l.cab ? ' · ' + l.cab + ' cab.' : ''}` : 'sem lote'} · gira ${esc(giro)}</span>${sentido}</div>${ed}`;
+    if (!ag.occ) return `<div class="card pl">${cab}<div class="hint" style="margin:0 0 6px">${pz ? `<b>⏸ Rotação pausada desde ${fDT(pz)}</b> — os pastos estão em recuperação. ` : ''}Sem gado nesta região. Informe em qual pasto a boiada entrou e quando:</div>
       <div class="tw"><table><tbody>${q.map(p => `<tr data-p="${p.id}"><td><b>${esc(p.nome)}</b></td><td><input type="date" data-c="novo" aria-label="Entrada no ${esc(p.nome)}"></td></tr>`).join('')}</tbody></table></div></div>`;
     const aviso = ag.outros.length ? `<div class="aviso" style="margin:0 0 8px">Atenção: também consta gado em ${ag.outros.map(e => `pasto <b>${esc(P(e.pasto).nome)}</b> (${esc((Lt(e.lote) || {}).nome || 'lote')}, desde ${fD(e.ent)})`).join(', ')}. Se não for verdade, apague esse pastejo na aba Histórico.</div>` : '';
     return `<div class="card pl">${cab}${aviso}
@@ -3507,6 +3561,8 @@ function renderPlanilha() {
           <td><b class="${curto ? 'ruim' : 'bom'}">${Math.round(L.recup)} dias</b><div class="t">volta ${dCurta(L.volta)}</div></td></tr>`;
       }).join('')}</tbody></table></div></div>`;
   }).join('');
+  box.querySelectorAll('[data-pausar]').forEach(b => b.onclick = () => pausarRegiao(b.dataset.pausar));
+  box.querySelectorAll('[data-retomar]').forEach(b => b.onclick = () => retomarRegiao(b.dataset.retomar));
   box.querySelectorAll('[data-sent]').forEach(b => b.onclick = () => { ordenarRegiao(b.dataset.reg, b.dataset.sent === 'desc'); mudou(); toast(`${regNome(b.dataset.reg)}: giro ${seqReg(b.dataset.reg).map(p => p.nome).join(' → ')}.`); });
   box.querySelectorAll('details[data-ed]').forEach(d => d.ontoggle = () => { if (d.open) plEdAbertos.add(d.dataset.ed); else plEdAbertos.delete(d.dataset.ed); });
   box.querySelectorAll('tr[data-pe]').forEach(tr => {
@@ -3531,7 +3587,7 @@ function renderPlanilha() {
     };
     if (iPrev) iPrev.onchange = ev => {
       const v = fromDate(ev.target.value); if (v == null || v <= occ.ent) { toast('A saída prevista precisa ser depois da entrada.'); return volta(); }
-      if (v === prazoDe(occ.ent, p)) delete occ.adiado; else occ.adiado = v;
+      if (v === prazoDe(occ.ent, p)) delete occ.adiado; else occ.adiado = v; // data do Manejo passa a valer na Agenda
       mudou(); toast(`Saída prevista do ${p.nome}: ${fDia(v)}.`);
     };
     if (iDias) iDias.onchange = ev => {
@@ -3541,7 +3597,8 @@ function renderPlanilha() {
     if (iNovo) iNovo.onchange = ev => {
       const v = fromDate(ev.target.value); if (v == null) return;
       if (v > now()) { toast('A entrada não pode ser no futuro.'); return volta(); }
-      const l = lotesDaRegiao(regDe(p))[0] || ST.lotes.find(x => !aberto(x.id));
+      const l = lotesDaRegiao(regDe(p))[0] || ST.lotes.find(x => !aberto(x.id) && regLote(x) === regDe(p)) || ST.lotes.find(x => !aberto(x.id));
+      if (ST.cfg.pausa && ST.cfg.pausa[regDe(p)]) { ST.cfg.pausa = Object.assign({}, ST.cfg.pausa); delete ST.cfg.pausa[regDe(p)]; }
       if (!l) { toast('Crie o lote desta região em “Configurações”.'); return volta(); }
       confirmarMudanca(l, p.id, v);
     };
@@ -3799,7 +3856,7 @@ function ser(col, o, i) {
   if (col === 'lotes') return { nome: o.nome || '', cab: o.cab ?? null, cor: o.cor || '#B4532E', reg: o.reg || '' };
   return { lote: o.lote, pasto: o.pasto, ent: o.ent, sai: o.sai ?? null, est: !!o.est, adiado: o.adiado ?? null };
 }
-const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.hora, folga: +ST.cfg.folga, mig: +ST.cfg.mig || 0, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '', abas: ST.cfg.abas || {} });
+const cfgNuvem = () => ({ ocup: +ST.cfg.ocup, desc: +ST.cfg.desc, hora: +ST.cfg.hora, folga: +ST.cfg.folga, mig: +ST.cfg.mig || 0, tel: ST.cfg.tel || '', faz: ST.cfg.faz || '', abas: ST.cfg.abas || {}, pausa: ST.cfg.pausa || {} });
 const arrDe = col => col === 'pastos' ? ST.pastos : col === 'lotes' ? ST.lotes : ST.ev;
 
 // envia para a nuvem só o que mudou desde o último estado conhecido
