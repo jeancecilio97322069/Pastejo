@@ -2246,9 +2246,7 @@ const PAUSA = '<svg class="pausa" viewBox="0 0 10 10" aria-hidden="true"><rect x
 // sem ela, o prazo normal — empurrado até o próximo pasto ficar pronto
 function dataPassagem(o, evs = ST.ev, t = now()) {
   const p = P(o.pasto); if (!p) return null;
-  const pr = prazoEv(o, p); if (o.adiado) return pr;
-  const l = Lt(o.lote), sg = l ? sugestao(l, evs, Math.max(pr, t), null) : null;
-  return pr + (sg && sg.espera > 0 ? sg.espera : 0);
+  return prazoEv(o, p); // sempre a data da planilha de Manejo (prazo do pasto ou data informada)
 }
 const prazoEv = (e, p) => (e && e.adiado) ? e.adiado : prazoDe(e.ent, p); // nova data decidida no campo vale no lugar do prazo normal
 const fimRecDe = (sai, p) => naHora(sai + par(p, 'desc') * DAY, sai);
@@ -2338,7 +2336,7 @@ function simular(ate) {
     const tm = Math.max(prazoMin, t0); if (tm > ate) break;
     const s = sugestao(alvo, evs, tm, null);
     if (!s || !s.p) break;
-    const tMov = ab.adiado ? tm : tm + (s.espera || 0); if (tMov > ate) break;
+    const tMov = tm; if (tMov > ate) break; // passa na data do Manejo, mesmo que o próximo pasto não esteja 100%
     ab.sai = tMov; ab.saiPrev = true;
     evs.push({ id: 'prev' + it, lote: alvo.id, pasto: s.p.id, ent: tMov, sai: null, prev: true });
   }
@@ -2593,10 +2591,10 @@ function renderAvisos() {
   const nVenc = seq.filter(x => t >= janela(x.tp).lim).length;
   const itSeq = seq.map(x => {
     // data da passagem igual à do calendário: se o próximo pasto ainda não estiver pronto no prazo, a passagem fica para o dia em que ele fica pronto
-    const tPass = x.tp, esp = tPass - x.prazo;
+    const tPass = x.tp, esp = x.s && x.s.espera > 0 ? x.s.espera : 0;
     const J = janela(tPass), atras = t >= J.lim, ad = !!x.o.adiado, nv = atras ? 'alto' : (t >= (ad ? tPass : J.aval)) ? 'medio' : '';
     const grande = 'Passar ' + fDAA(tPass) + (atras ? ' · atrasado' : t >= tPass ? ' · hoje' : ''),
-      peq = esp > 0 && x.s && x.s.p ? `Prazo no pasto ${esc(x.p.nome)} era ${fDAA(x.prazo)}, mas o ${esc(x.s.p.nome)} só fica pronto ${fDAA(tPass)}. Para passar antes, use Mais opções.` : '';
+      peq = esp > 0 && x.s && x.s.p ? `Atenção: o pasto ${esc(x.s.p.nome)} só completa a recuperação em ${fDAA(x.s.pronto || tPass + esp)}. Para segurar o gado até lá, mude a saída na aba Manejo.` : '';
     const dest = x.s && x.s.p ? x.s.p.nome : '—';
     const pct = Math.min(1, (t - x.o.ent) / (tPass - x.o.ent));
     return `<div class="avitem lote ${nv}" data-l="${x.l.id}"><span class="dot" style="background:${x.l.cor}"></span><div class="tx">
